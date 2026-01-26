@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: jewelry-assistant
+    env: docker
+    plan: free
+    dockerContext: .
+    envVars:
+      - key: PORT
+        value: 10000

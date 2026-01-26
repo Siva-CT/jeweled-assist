@@ -1,0 +1,20 @@
+@import "tailwindcss";
+
+/* Force class-based dark mode for v4 */
+@variant dark (&:where(.dark, .dark *));
+
+@theme {
+    --color-jewelry-dark: #020B13;
+    --color-jewelry-gold: #D5B038;
+    --color-jewelry-bronze: #A57D02;
+    --color-jewelry-gold-light: #F4E4BC;
+
+    --font-serif: "Playfair Display", serif;
+    --font-sans: "Inter", sans-serif;
+}
+
+/* Custom Utilities if needed */
+body {
+    background-color: var(--color-jewelry-dark);
+    color: white;
+}
