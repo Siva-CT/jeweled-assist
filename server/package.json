@@ -1,0 +1,20 @@
+{
+    "name": "server",
+    "version": "1.0.0",
+    "description": "Jewelry Assistant Backend",
+    "main": "index.js",
+    "engines": {
+        "node": ">=18.0.0"
+    },
+    "scripts": {
+        "start": "node index.js",
+        "dev": "node --watch index.js"
+    },
+    "dependencies": {
+        "express": "^5.0.0",
+        "cors": "^2.8.5",
+        "dotenv": "^16.3.1",
+        "twilio": "^4.19.0",
+        "body-parser": "^1.20.2"
+    }
+}

@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: jewelry-server
+    env: node
+    buildCommand: cd server && npm install && pip install -r requirements.txt
+    startCommand: cd server && node index.js
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.9.0
+      - key: NODE_VERSION
+        value: 18.0.0
+
+  - type: static
+    name: jewelry-client
+    env: static
+    buildCommand: cd client && npm install && npm run build
+    staticPublishPath: client/dist
