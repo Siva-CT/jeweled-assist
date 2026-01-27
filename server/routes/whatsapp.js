@@ -186,7 +186,7 @@ router.post('/', async (req, res) => {
             session.mode = 'bot';
             session.step = 'menu';
             db.save(); // SAVE
-            await sendReply(From, "🤖 *Bot Resumed*");
+            await sendReply(From, "🤖 *The Jewel Bot is back!*");
             return;
         }
         if (idleTimers[From]) clearTimeout(idleTimers[From]);

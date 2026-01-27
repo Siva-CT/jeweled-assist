@@ -1,7 +1,7 @@
 const { spawn } = require('child_process');
 const path = require('path');
 
-let cachedRates = null;
+let cachedRates = { gold_gram_inr: 7650, silver_gram_inr: 92, platinum_gram_inr: 3500 };
 let lastFetchTime = 0;
 const CACHE_DURATION = 60 * 1000;
 
