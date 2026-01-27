@@ -154,7 +154,8 @@ router.post('/toggle-bot', async (req, res) => {
     const { phone, mode } = req.body;
     try {
         // 1. Update Session Mode (RAM/DB)
-        approvalService.updateSession(phone, { mode });
+        // FORCE RESET STEP to 'menu' to prevent "Welcome back" loop on re-entry
+        approvalService.updateSession(phone, { mode, step: 'menu' });
 
         // 2. Update Conversation Status (Inbox Visibility)
         const isBot = mode === 'bot';

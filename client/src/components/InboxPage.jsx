@@ -8,7 +8,29 @@ const InboxPage = () => {
     const [filter, setFilter] = useState('All'); // All, Needs Action, Custom
     const [inputText, setInputText] = useState('');
 
-    // Fetch conversations (Mock + API)
+    // Chat History State
+    const [messages, setMessages] = useState([]);
+    const [chatLoading, setChatLoading] = useState(false);
+
+    // Fetch Chat History when Chat Selected
+    useEffect(() => {
+        if (selectedChat?.phone) {
+            setChatLoading(true);
+            fetch(`${API_URL}/api/dashboard/chat/${selectedChat.phone}`)
+                .then(res => res.json())
+                .then(data => {
+                    setMessages(data || []);
+                    setChatLoading(false);
+                })
+                .catch(e => {
+                    console.error(e);
+                    setChatLoading(false);
+                });
+        } else {
+            setMessages([]);
+        }
+    }, [selectedChat]);
+    // List of Chats
     useEffect(() => {
         const fetchInbox = async () => {
             try {
@@ -81,12 +103,12 @@ const InboxPage = () => {
         }
     };
 
-    const ChatMessage = ({ msg, isMe }) => (
+    const ChatMessage = ({ msg, isMe, time }) => (
         <div className={`flex ${isMe ? 'justify-end' : 'justify-start'} mb-4`}>
             <div className={`max-w-[70%] rounded-2xl p-4 ${isMe ? 'bg-[#2563eb] text-white rounded-tr-sm' : 'bg-[#1b1d29] text-gray-200 border border-[var(--border-dim)] rounded-tl-sm'}`}>
-                <p className="text-sm leading-relaxed">{msg}</p>
+                <p className="text-sm leading-relaxed whitespace-pre-wrap">{msg}</p>
                 <div className={`text-[10px] mt-2 flex items-center justify-end gap-1 ${isMe ? 'text-blue-200' : 'text-gray-500'}`}>
-                    <span>10:42 AM</span>
+                    <span>{time || '10:42 AM'}</span>
                     {isMe && <CheckCheck size={12} />}
                 </div>
             </div>
@@ -197,6 +219,9 @@ const InboxPage = () => {
                         </div>
                     </div>
 
+
+
+
                     {/* Messages */}
                     <div className="flex-1 overflow-y-auto p-8 custom-scrollbar bg-[var(--bg-main)] relative">
                         {/* Placeholder Diamond Background Pattern */}
@@ -230,10 +255,20 @@ const InboxPage = () => {
                             </div>
                         )}
 
-                        <ChatMessage msg="Hi there! I was browsing your collection and saw the solitaire rings." isMe={false} />
-                        <ChatMessage msg="I'm specifically looking for something around 2 carats, preferably with a classic gold band. Do you have options?" isMe={false} />
-
-                        {/* Mock Reply Input */}
+                        {chatLoading ? (
+                            <div className="flex justify-center py-10 opacity-50">Loading chat history...</div>
+                        ) : messages.length > 0 ? (
+                            messages.map((m, i) => (
+                                <ChatMessage
+                                    key={i}
+                                    msg={m.text}
+                                    isMe={m.from === 'bot' || m.from === 'owner'}
+                                    time={new Date(m.timestamp?._seconds * 1000 || m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                />
+                            ))
+                        ) : (
+                            <div className="text-center text-gray-500 text-sm py-10">No messages yet.</div>
+                        )}
                     </div>
 
                     {/* Input Area */}
