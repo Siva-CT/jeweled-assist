@@ -63,7 +63,72 @@ function App() {
 
     // --- RENDER HELPERS ---
 
-    // --- RENDER HELPERS ---
+    // Total Queries Page (Read-Only Analytics)
+    const renderTotalQueries = () => {
+        const [analyticsData, setAnalyticsData] = useState([]);
+        const [loading, setLoading] = useState(true);
+
+        useEffect(() => {
+            fetch(`${API_URL}/api/dashboard/analytics/monthly-customers`)
+                .then(res => res.json())
+                .then(data => {
+                    setAnalyticsData(data);
+                    setLoading(false);
+                })
+                .catch(e => {
+                    console.error(e);
+                    setLoading(false);
+                });
+        }, []);
+
+        return (
+            <div className="flex-1 bg-[var(--bg-deep)] p-8 overflow-y-auto custom-scrollbar">
+                <div className="flex justify-between items-end mb-8">
+                    <div>
+                        <h2 className="text-3xl font-bold text-[var(--gold-primary)] font-serif mb-1">Total Queries</h2>
+                        <p className="text-gray-500 text-sm">Monthly Aggregated Analytics</p>
+                    </div>
+                </div>
+
+                <div className="bg-[var(--bg-panel)] rounded-xl border border-white/5 overflow-hidden">
+                    <table className="w-full text-left border-collapse">
+                        <thead>
+                            <tr className="bg-[#111] text-xs font-bold text-gray-500 uppercase tracking-wider border-b border-white/5">
+                                <th className="p-4">Customer Number</th>
+                                <th className="p-4">Queries This Month</th>
+                                <th className="p-4">Query Types</th>
+                                <th className="p-4">Store Visit</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-white/5 text-sm text-gray-300">
+                            {loading ? (
+                                <tr><td colSpan="4" className="p-8 text-center text-gray-500">Loading analytics...</td></tr>
+                            ) : analyticsData.length === 0 ? (
+                                <tr><td colSpan="4" className="p-8 text-center text-gray-500">No queries found for this month used.</td></tr>
+                            ) : (
+                                analyticsData.map((row, idx) => (
+                                    <tr key={idx} className="hover:bg-white/5 transition-colors">
+                                        <td className="p-4 font-mono text-[var(--gold-primary)]">{row.customer}</td>
+                                        <td className="p-4 font-bold">{row.queriesThisMonth}</td>
+                                        <td className="p-4">
+                                            <span className="bg-blue-500/10 text-blue-400 px-2 py-1 rounded text-xs border border-blue-500/10 uppercase">
+                                                {row.queryTypes || 'General'}
+                                            </span>
+                                        </td>
+                                        <td className="p-4">
+                                            <span className={`px-2 py-1 rounded text-xs font-bold ${row.storeVisit === 'Yes' ? 'bg-green-500/20 text-green-500' : 'text-gray-500'}`}>
+                                                {row.storeVisit}
+                                            </span>
+                                        </td>
+                                    </tr>
+                                ))
+                            )}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        );
+    };
 
     // The 3-Pane Inbox Layout
     const renderInbox = () => (
@@ -204,7 +269,8 @@ function App() {
             {/* Main Content Area */}
             <main className="flex-1 flex overflow-hidden relative">
                 {activePage === 'dashboard' && <ExecutiveDashboard />}
-                {(activePage === 'inbox' || activePage === 'customers') && renderInbox()}
+                {activePage === 'inbox' && renderInbox()}
+                {activePage === 'customers' && renderTotalQueries()}
                 {activePage === 'settings' && (
                     <div className="p-8 w-full max-w-4xl mx-auto overflow-y-auto custom-scrollbar">
                         <h2 className="text-3xl font-bold mb-8 font-serif text-[var(--gold-primary)]">Settings</h2>
