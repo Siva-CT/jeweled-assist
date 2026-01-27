@@ -39,6 +39,7 @@ async function getLiveRates() {
         console.log("Fetching live rates from GoldAPI...");
         const apiKey = process.env.GOLDAPI_KEY;
         if (!apiKey) throw new Error("GOLDAPI_KEY missing in .env");
+        console.log("Using API Key:", apiKey.substring(0, 5) + "...");
 
         // Fetch Gold (XAU), Silver (XAG), Platinum (XPT)
         // GoldAPI requires separate calls or specific logic. 

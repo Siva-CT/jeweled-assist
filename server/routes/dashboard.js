@@ -100,10 +100,14 @@ router.get('/inbox', async (req, res) => {
             const data = doc.data();
             return {
                 phone: doc.id,
-                name: data.name || doc.id, // Fallback
-                lastIntent: data.intent || data.last_intent || 'General',
-                lastMessage: data.last_intent || 'User waiting...',
+                name: data.name || doc.id,
+                // MATCH FRONTEND PROPS:
+                intent: data.intent || 'General',
+                metal: data.metal || null,
+                lastQuery: data.last_intent || data.intent || 'User waiting...',
+                lastMessage: data.last_intent || 'User waiting...', // Backwards combat
                 lastContact: data.last_message_at?.toDate() || new Date(),
+                actionRequired: true, // Explicitly true since we filtered by it (Fixes Red Badge)
                 status: 'Needs Action'
             };
         });
@@ -155,18 +159,15 @@ router.post('/toggle-bot', async (req, res) => {
         const isBot = mode === 'bot';
         await approvalService.syncConversation(phone, {
             bot_enabled: isBot,
-            requires_owner_action: !isBot, // If Bot, owner action done. If Agent, owner action needed? No, owner "taking over" usually implies active manual.
-            // Actually: "Toggle to Bot" -> Owner finished. "Toggle to Human" -> Owner actively chatting.
-            // When Toggling TO BOT: requires_owner_action = false (Remove from Inbox Needs Action)
-            // When Toggling TO AGENT: requires_owner_action = false (It's active, but maybe "In Progress"? Dashboard query filters by requires_owner_action=true. 
-            // If we assume "Needs Action" means "Unanswered Handoff", then flipping to Agent implies we ARE answerng.
-            // So requires_owner_action = false in BOTH toggle cases is safest to clear the "Alert".
-            requires_owner_action: false
+            requires_owner_action: !isBot,
+            requires_owner_action: false // Always clear the "Needs Action" flag when toggling (handled or handed back)
         });
 
         // 3. Send Handoff Message (If switching TO Bot)
         if (isBot) {
-            const menuText = `💎 *System Update*\n\nAutomated assistant is back online.\n\nType *0* for Main Menu.`;
+            // "Bot active. Can I help with anything else? + Menu"
+            const menuText = `Bot active. Can I help with anything else? 😊\n\n1️⃣ 🛍️ *Buy Jewellery*\n2️⃣ ♻️ *Exchange Old Gold*\n3️⃣ 💬 *Get Expert Advice*\n4️⃣ 📍 *Store Location*`;
+
             await client.messages.create({
                 from: `whatsapp:${process.env.TWILIO_PHONE_NUMBER}`,
                 to: phone,
