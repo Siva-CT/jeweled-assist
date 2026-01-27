@@ -219,11 +219,13 @@ router.post('/', async (req, res) => {
             }
             else if (session.step === 'buy_category') {
                 let category = 'General';
-                let wastagePct = 0.15; // default 15%
+                // Use DB Settings for Wastage, Fallback to defaults
+                const wConfig = db.settings.wastage || { bridal: 0.25, daily: 0.15, investment: 0.05 };
+                let wastagePct = wConfig.daily; // Default
 
-                if (cleanInput.includes('1') || cleanInput.includes('bridal')) { category = 'Bridal'; wastagePct = 0.25; } // 25% WASTAGE
-                else if (cleanInput.includes('2') || cleanInput.includes('daily')) { category = 'Daily'; wastagePct = 0.15; } // 15% WASTAGE
-                else if (cleanInput.includes('3') || cleanInput.includes('investment')) { category = 'Investment'; wastagePct = 0.05; } // 5% WASTAGE
+                if (cleanInput.includes('1') || cleanInput.includes('bridal')) { category = 'Bridal'; wastagePct = wConfig.bridal; }
+                else if (cleanInput.includes('2') || cleanInput.includes('daily')) { category = 'Daily'; wastagePct = wConfig.daily; }
+                else if (cleanInput.includes('3') || cleanInput.includes('investment')) { category = 'Investment'; wastagePct = wConfig.investment; }
 
                 session.buyFlow.category = category;
 

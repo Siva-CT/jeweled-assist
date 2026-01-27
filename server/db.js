@@ -26,7 +26,8 @@ const defaultData = {
         mapLink: "https://maps.google.com/?q=Jeweled+Showroom",
         approvalThreshold: 20000,
         useManualRates: false,
-        manualRates: { gold: 0, silver: 0, platinum: 0 }
+        manualRates: { gold: 0, silver: 0, platinum: 0 },
+        wastage: { bridal: 0.25, daily: 0.15, investment: 0.05 }
     },
     stats: {
         totalQueries: 0,
