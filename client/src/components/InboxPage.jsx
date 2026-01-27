@@ -37,26 +37,20 @@ const InboxPage = () => {
                 const res = await fetch(`${API_URL}/api/dashboard/inbox`);
                 const data = await res.json();
 
-                // Transform data or stick to mock if empty
+                // Transform data or stick to empty if empty
                 if (data && data.length > 0) {
                     setConversations(data.map(d => ({
                         id: d.phone,
                         name: d.name,
                         lastMsg: d.lastIntent || "New inquiry received",
-                        time: "2m ago", // Mock time for now
+                        time: "Recently", // You might want to format d.lastContact here
                         status: d.status === 'Needs Action' ? 'Needs Action' : 'Active',
                         unread: d.actionRequired ? 1 : 0,
                         type: d.intent || 'General',
                         phone: d.phone
                     })));
                 } else {
-                    // Fallback Mock Data as per Image
-                    setConversations([
-                        { id: 1, name: '+91 98765 43210', lastMsg: "I'm looking for a 2ct solitaire ring with a gold band...", time: '2m ago', status: 'Needs Action', type: 'Expert Advice', unread: 1 },
-                        { id: 2, name: '+91 91234 56789', lastMsg: "Attached is the sketch for the bespoke necklace...", time: '15m ago', status: 'Needs Action', type: 'Custom Design', unread: 2 },
-                        { id: 3, name: '+44 7700 900012', lastMsg: "Can I get a trade-in value for this vintage Patek?", time: '1h ago', status: 'Under Review', type: 'Valuation', unread: 0 },
-                        { id: 4, name: '+1 212 555 0198', lastMsg: "Seeking a conflict-free pink diamond, pear cut...", time: '3h ago', status: 'Needs Action', type: 'Rare Stones', unread: 0 },
-                    ]);
+                    setConversations([]);
                 }
             } catch (e) { console.error("Inbox Fetch Error", e); }
         };
