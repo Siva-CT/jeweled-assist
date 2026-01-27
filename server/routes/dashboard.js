@@ -45,59 +45,83 @@ router.post('/send-message', async (req, res) => {
     }
 });
 
-// Get Stats (Restored - Light Query)
+// Get Stats (Restored - Light & Safe)
 router.get('/stats', async (req, res) => {
     try {
-        const rates = await getLiveRates(); // Cached
+        const rates = await getLiveRates(); // Uses Memory Cache or Single API Call
 
-        // Light Count Query (Requires Owner Action)
-        const snapshot = await db.collection('conversations')
+        // 1. Action Required Count
+        const actionSnap = await db.collection('conversations')
             .where('requires_owner_action', '==', true)
             .get();
 
+        // 2. Total Inquiries (Capped at 101 for speed, returns "100+" if > 100)
+        const totalSnap = await db.collection('conversations')
+            .limit(101)
+            .get();
+
         res.json({
-            goldRate: rates?.gold_gram_inr || 0,
-            silverRate: rates?.silver_gram_inr || 0,
+            goldRate: rates?.gold_gram_inr || 7000,
+            silverRate: rates?.silver_gram_inr || 90,
             pendingCount: 0,
             qualifiedleads: 0,
-            totalInquiries: 0, // Keep 0 to avoid heavy scan
-            actionRequired: snapshot.size, // Real Count
+            totalInquiries: totalSnap.size > 100 ? "100+" : totalSnap.size, // Real count up to 100, then "100+"
+            actionRequired: actionSnap.size,
             isManual: !!rates?.isManual,
             lastUpdated: new Date()
         });
     } catch (e) {
-        res.json({ goldRate: 0, silverRate: 0, actionRequired: 0, lastUpdated: new Date() });
+        console.error("Stats Error:", e);
+        // Fallback checks
+        res.json({
+            goldRate: 7000,
+            silverRate: 90,
+            actionRequired: 0,
+            totalInquiries: 0,
+            lastUpdated: new Date()
+        });
     }
 });
 
 // Get Pending (Approvals) - Disabled
 router.get('/pending', (req, res) => res.json([]));
 
-// Get Inbox (Restored - Active Conversations Only)
+// Get Inbox (Restored - Active Only)
 router.get('/inbox', async (req, res) => {
     try {
+        // STRICT: Expert Advice Only
         const snapshot = await db.collection('conversations')
             .where('requires_owner_action', '==', true)
-            .orderBy('createdAt', 'desc') // Ensure index exists or remove sort if error
-            .limit(20)
+            .orderBy('last_message_at', 'desc')
+            .limit(50)
             .get();
 
-        const list = snapshot.docs.map(doc => ({
-            phone: doc.id,
-            ...doc.data(),
-            lastContact: doc.data().last_message_at?.toDate()
-        }));
+        const list = snapshot.docs.map(doc => {
+            const data = doc.data();
+            return {
+                phone: doc.id,
+                name: data.name || doc.id, // Fallback
+                lastIntent: data.intent || data.last_intent || 'General',
+                lastMessage: data.last_intent || 'User waiting...',
+                lastContact: data.last_message_at?.toDate() || new Date(),
+                status: 'Needs Action'
+            };
+        });
 
         res.json(list);
     } catch (e) {
         console.error("Inbox Fetch Error:", e);
-        // Fallback without sort if index missing
+        // Fallback for missing index
         try {
             const snapshot2 = await db.collection('conversations')
                 .where('requires_owner_action', '==', true)
                 .limit(20)
                 .get();
-            res.json(snapshot2.docs.map(d => ({ phone: d.id, ...d.data() })));
+            res.json(snapshot2.docs.map(d => ({
+                phone: d.id,
+                lastIntent: d.data().intent,
+                lastContact: new Date()
+            })));
         } catch (e2) {
             res.json([]);
         }

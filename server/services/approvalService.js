@@ -190,15 +190,30 @@ const updateInboxMetadata = async (phone, metadata) => {
 
 // --- CONFIGURATION FEATURES ---
 
+// Safe Settings Fetch with Auto-Create
 const getStoreSettings = async () => {
-    return safeRead(async () => {
-        const doc = await db.collection('config').doc('store_settings').get();
-        return doc.exists ? doc.data() : null;
-    }, null);
+    try {
+        const doc = await db.collection('settings').doc('global').get();
+        if (doc.exists) return doc.data();
+
+        // Auto-Create Defaults if Missing
+        const defaults = {
+            store_name: "Jeweled Showroom",
+            store_address: "Chennai, India",
+            store_timings: "10:00 AM – 9:00 PM",
+            google_maps_link: "https://maps.google.com/?q=Jeweled+Showroom+Chennai",
+            createdAt: new Date()
+        };
+        await db.collection('settings').doc('global').set(defaults);
+        return defaults;
+    } catch (error) {
+        console.error("Settings Error:", error);
+        return null;
+    }
 };
 
 const updateStoreSettings = async (data) => {
-    try { await db.collection('config').doc('store_settings').set(data, { merge: true }); } catch (e) { console.error(e); }
+    try { await db.collection('settings').doc('global').set(data, { merge: true }); } catch (e) { console.error(e); }
 };
 
 const getPricingConfig = async () => {
