@@ -84,6 +84,7 @@ router.post('/', async (req, res) => {
             if (reqItem) {
                 reqItem.status = 'approved';
                 reqItem.finalPrice = price;
+                db.save(); // SAVE
                 await sendReply(reqItem.customer, `🎉 *The owner has approved a special price for your request!*\n\nApprox Estimate: ₹${price}\n\nVisit our showroom today to finalize the design!`);
                 await sendReply(From, `✅ Approved request for ${reqItem.customer} at ₹${price}`);
             } else {
@@ -100,6 +101,7 @@ router.post('/', async (req, res) => {
             }
             await sendReply(target, msg);
             db.messages.push({ from: 'owner', to: target, text: msg, timestamp: new Date() });
+            db.save(); // SAVE
             await sendReply(From, `📤 Sent to ${target}: "${msg}"`);
             return;
 
@@ -115,6 +117,7 @@ router.post('/', async (req, res) => {
             const val = parseInt(cleanInput.split(' ')[2]);
             if (val) {
                 db.settings.approvalThreshold = val;
+                db.save(); // SAVE
                 await sendReply(From, `✅ Approval Threshold set to ₹${val}`);
             }
             return;
@@ -124,6 +127,7 @@ router.post('/', async (req, res) => {
             if (val) {
                 if (!db.settings.manualRates) db.settings.manualRates = {};
                 db.settings.manualRates.gold = val;
+                db.save(); // SAVE
                 await sendReply(From, `✅ Manual Gold Rate set to ₹${val}/g`);
             }
             return;
@@ -133,6 +137,7 @@ router.post('/', async (req, res) => {
         if (lastContext.customer) {
             await sendReply(lastContext.customer, input);
             db.messages.push({ from: 'owner', to: lastContext.customer, text: input, timestamp: new Date() });
+            db.save(); // SAVE
             return;
         }
         await sendReply(From, "🤖 Owner Mode. Type *Help* for commands.");
@@ -143,12 +148,14 @@ router.post('/', async (req, res) => {
     let session = db.sessions[From] || { step: 'welcome', mode: 'bot' };
     db.sessions[From] = session;
     db.messages.push({ from: From, to: 'admin', text: input, timestamp: new Date() });
+    db.save(); // SAVE
 
     // AGENT MODE (Human Takeover)
     if (session.mode === 'agent') {
         if (cleanInput === 'bot' || cleanInput === 'menu' || cleanInput === 'bot takeover') {
             session.mode = 'bot';
             session.step = 'menu';
+            db.save(); // SAVE
             await sendReply(From, "🤖 *Bot Resumed*");
             return;
         }
@@ -156,6 +163,7 @@ router.post('/', async (req, res) => {
         idleTimers[From] = setTimeout(() => {
             sendReply(From, `👋 *Session Closed*\n\nThank you for your enquiry. Feel free to visit us anytime.\n\n📍 ${db.settings.storeLocation}`);
             session.mode = 'bot';
+            db.save(); // SAVE
         }, 10 * 60 * 1000); // 10 Min Timeout
         return;
     }

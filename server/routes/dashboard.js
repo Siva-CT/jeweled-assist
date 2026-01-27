@@ -33,6 +33,7 @@ router.post('/send-message', async (req, res) => {
             body: text
         });
         db.messages.push({ from: 'owner', to: phone, text, timestamp: new Date() });
+        db.save(); // SAVE
         res.json({ success: true });
     } catch (e) {
         res.status(500).json({ error: e.toString() });
@@ -46,7 +47,7 @@ router.get('/stats', async (req, res) => {
         goldRate: rates.gold_gram_inr || 0,
         silverRate: rates.silver_gram_inr || 0,
         pendingCount: db.pendingApprovals.filter(p => p.status === 'pending_approval').length,
-        qualifiedleads: db.pendingApprovals.length,
+        qualifiedleads: db.pendingApprovals.filter(p => p.status === 'approved').length,
         lastUpdated: new Date()
     });
 });
@@ -66,6 +67,7 @@ router.post('/approve', async (req, res) => {
 
     request.status = 'approved';
     request.finalPrice = finalPrice || request.estimatedCost;
+    db.save(); // SAVE
 
     try {
         await client.messages.create({
@@ -81,7 +83,7 @@ router.post('/approve', async (req, res) => {
 
 // Trigger Nudge
 router.post('/nudge', async (req, res) => {
-    const { id, force } = req.body;
+    const { id } = req.body;
     const request = db.pendingApprovals.find(p => p.id === id);
     if (!request) return res.status(404).json({ error: "Request not found" });
 
@@ -102,6 +104,7 @@ router.post('/nudge', async (req, res) => {
 // Update Settings
 router.post('/settings', (req, res) => {
     Object.assign(db.settings, req.body);
+    db.save(); // SAVE
     res.json({ success: true, settings: db.settings });
 });
 
@@ -118,6 +121,7 @@ router.post('/toggle-bot', (req, res) => {
     } else {
         db.sessions[phone].mode = mode;
     }
+    db.save(); // SAVE
     res.json({ success: true, mode: db.sessions[phone].mode });
 });
 
