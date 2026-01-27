@@ -13,7 +13,10 @@ def fetch_rates():
         usd_inr = data['Close']['USDINR=X'].iloc[-1]
         
         # 1 Troy Oz = 31.1035g
-        gold_gram_inr = (gold_oz_usd / 31.1035) * usd_inr
+        # User Spec: 22K (91.6% Purity)
+        gold_gram_24k = (gold_oz_usd / 31.1035) * usd_inr
+        gold_gram_inr = gold_gram_24k * 0.916
+        
         silver_gram_inr = (silver_oz_usd / 31.1035) * usd_inr
         
         result = {
