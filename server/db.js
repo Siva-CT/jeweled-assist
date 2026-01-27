@@ -30,7 +30,8 @@ const defaultData = {
     stats: {
         totalQueries: 0,
         lastRun: null
-    }
+    },
+    customers: {}
 };
 
 // Load Data with Backup Fallback
@@ -60,6 +61,8 @@ if (loadedData) {
     }
     // Merge stats
     data.stats = { ...defaultData.stats, ...(data.stats || {}) };
+    // Merge customers
+    data.customers = { ...defaultData.customers, ...(data.customers || {}) };
 }
 
 const db = {
@@ -92,7 +95,8 @@ const db = {
                 sessions: db.sessions,
                 ownerContext: db.ownerContext,
                 settings: db.settings,
-                stats: db.stats
+                stats: db.stats,
+                customers: db.customers
             }, null, 2);
 
             // 1. Write to backup first

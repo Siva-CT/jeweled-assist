@@ -134,20 +134,14 @@ router.get('/bot-status/:phone', (req, res) => {
 
 // Get All Customers
 router.get('/all-customers', (req, res) => {
-    const customers = {};
-    db.messages.forEach(msg => {
-        const phone = msg.from === 'bot' || msg.from === 'owner' || msg.from === 'system' ? msg.to : msg.from;
-        if (phone === 'admin') return;
-        if (!customers[phone]) {
-            customers[phone] = { customer: phone, lastContact: msg.timestamp, msgCount: 0 };
-        }
-        customers[phone].msgCount++;
-        if (new Date(msg.timestamp) > new Date(customers[phone].lastContact)) {
-            customers[phone].lastContact = msg.timestamp;
-            customers[phone].lastQuery = msg.text;
-        }
-    });
-    res.json(Object.values(customers).sort((a, b) => new Date(b.lastContact) - new Date(a.lastContact)));
+    // Return persistent customers list
+    const list = Object.values(db.customers || {}).map(c => ({
+        customer: c.phone,
+        lastContact: c.lastContact,
+        lastQuery: c.lastQuery || 'No interaction',
+        msgCount: c.msgCount || 0
+    }));
+    res.json(list.sort((a, b) => new Date(b.lastContact) - new Date(a.lastContact)));
 });
 
 module.exports = router;
