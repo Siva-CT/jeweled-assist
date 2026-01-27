@@ -227,7 +227,7 @@ router.post('/', async (req, res) => {
                 session.step = 'menu';
                 // Greeting Image
                 const GREETING_IMG = 'https://drive.google.com/uc?id=1XlsK-4OS5qrs87W9bRNwTXxxcilGgc3q';
-                await sendReply(From, `💎 *Welcome to JeweledAssist!* \n\nHow can I help you today?\n\n1️⃣ *Buy Jewelry* (Gold/Silver/Platinum)\n2️⃣ *Exchange Old Jewel*\n3️⃣ *Talk to Sales Assistant*\n4️⃣ *Store Location*`, GREETING_IMG);
+                await sendReply(From, `💎 *Welcome to JeweledAssist!* \n\nHow can I help you today?\n\n1️⃣ *Buy Jewelry* (Gold/Silver/Platinum)\n2️⃣ *Exchange Old Jewel*\n3️⃣ *Talk to Sales Assistant*\n4️⃣ *Store Location*\n5️⃣ *View Catalog*`, GREETING_IMG);
                 return;
             }
 
@@ -249,16 +249,37 @@ router.post('/', async (req, res) => {
                         await sendReply(From, "What would you like to buy?\n\nType *Gold*, *Silver*, or *Platinum*.");
                         session.step = 'buy_category';
                     }
-                } else if (cleanInput.includes('2') || cleanInput.includes('exchange')) {
+                } else if (cleanInput.includes('exchange')) {
                     await sendReply(From, "What to exchange?\n\nType *Gold*, *Silver*, or *Platinum*.");
                     session.step = 'exchange_category';
-                } else if (cleanInput.includes('3') || cleanInput.includes('sales')) {
+                } else if (cleanInput.includes('sales')) {
                     session.mode = 'agent';
                     await sendReply(From, "👨‍💼 *Our sales expert will message you shortly.*");
                     notifyOwner(`Customer ${From} wants to chat!`, { customer: From });
                     await approvalService.create({ customer: From, type: 'support_request', status: 'pending_action', weight: 'N/A', estimatedCost: 'N/A' });
-                } else if (cleanInput.includes('4') || cleanInput.includes('location')) {
-                    await sendReply(From, `📍 *Store Location*\n\n${db.settings.storeLocation}\n\n${db.settings.mapLink}`);
+                } else if (cleanInput.includes('location')) {
+                    await sendReply(From, `📍 *Store Location*\n\n${db.settings.storeLocation}\n\n${db.settings.mapLink}\n\n🔄 *Type 'Menu' to start a new conversation*`);
+                } else if (cleanInput.includes('catalog') || cleanInput.includes('5')) {
+                    await sendReply(From, "📂 *Jewelry Catalog*\n\nSelect a category:\n\nA. *Gold Rings* 💍\nB. *Gold Chains* ⛓️");
+                    session.step = 'catalog_category';
+                }
+            } else if (session.step === 'catalog_category') {
+                if (cleanInput.includes('ring') || cleanInput === 'a') {
+                    // Send Rings
+                    await sendReply(From, "💍 *Gold Rings Collection*");
+                    await sendReply(From, "Elegant Design 1", 'https://drive.google.com/uc?id=1LNuPRyXGWsuZ-_s8Rwo2dZe3WwHL9DYd');
+                    await sendReply(From, "Classic Design 2", 'https://drive.google.com/uc?id=1rVzjVvGx9LSqdQm4h2ZEZSad5tFP6sqQ');
+                    await sendReply(From, "\n🔄 *Type 'Menu' to start a new conversation*");
+                    session.step = 'menu';
+                } else if (cleanInput.includes('chain') || cleanInput === 'b') {
+                    // Send Chains
+                    await sendReply(From, "⛓️ *Gold Chains Collection*");
+                    await sendReply(From, "Traditional Chain 1", 'https://drive.google.com/uc?id=1fBu2F7SbcpHHkBsRUJB9x03EewR2h3SX');
+                    await sendReply(From, "Modern Chain 2", 'https://drive.google.com/uc?id=1_-mjHEihvSgQbfbztU-0_yvnDBqN64dO');
+                    await sendReply(From, "\n🔄 *Type 'Menu' to start a new conversation*");
+                    session.step = 'menu';
+                } else {
+                    await sendReply(From, "Please select *A (Rings)* or *B (Chains)*.");
                 }
             } else if (session.step === 'buy_category') {
                 const metal = detectMetal(cleanInput);
@@ -302,17 +323,17 @@ router.post('/', async (req, res) => {
                     });
                     db.save(); // SAVE
                     notifyOwner(`New Estimate (> ₹${threshold}):\n${session.weight}g ${session.metalType}\nApprox: ₹${cost}\n\n*Reply 'Approve <Amount>'*`, { customer: From, reqId: newReq.id });
-                    await sendReply(From, `✅ *Request Received for ${session.weight}g ${session.metalType}*\n\nApprox Value: ~₹${cost}\n_(Includes 3% GST & Min Making Charges)_\n\n⚠️ *Note: Making charges & wastage vary from 5.5% to 35% based on design selection.*\n\nI have sent this to the owner for best price approval.`);
+                    await sendReply(From, `✅ *Request Received for ${session.weight}g ${session.metalType}*\n\nApprox Value: ~₹${cost}\n_(Includes 3% GST & Min Making Charges)_\n\n⚠️ *Note: Making charges & wastage vary from 5.5% to 35% based on design selection.*\n\nI have sent this to the owner for best price approval.\n\n🔄 *Type 'Menu' to start a new conversation*`);
                 } else {
                     await approvalService.create({ customer: From, type: 'estimate', weight: session.weight, estimatedCost: cost, status: 'approved', finalPrice: cost, metal: session.metalType });
                     db.save(); // SAVE
-                    await sendReply(From, `💰 *Estimate*\n\nApprox cost: *₹${cost}*\n_(Includes 3% GST & Min Making Charges)_\n\n⚠️ *Note: Making charges & wastage vary from 5.5% to 35% based on design selection.*\n\nVisit our store to purchase!`);
+                    await sendReply(From, `💰 *Estimate*\n\nApprox cost: *₹${cost}*\n_(Includes 3% GST & Min Making Charges)_\n\n⚠️ *Note: Making charges & wastage vary from 5.5% to 35% based on design selection.*\n\nVisit our store to purchase!\n\n🔄 *Type 'Menu' to start a new conversation*`);
                 }
                 session.step = 'menu';
             } else if (session.step === 'exchange_category') {
                 const metal = detectMetal(cleanInput);
                 if (metal) {
-                    await sendReply(From, `*${metal} Exchange Process*:\n\n1. Purity Verification\n2. Net Weight Check\n3. Today's Rate Valuation\n\nVisit store for details.`);
+                    await sendReply(From, `*${metal} Exchange Process*:\n\n1. Purity Verification\n2. Net Weight Check\n3. Today's Rate Valuation\n\nVisit store for details.\n\n🔄 *Type 'Menu' to start a new conversation*`);
                     session.step = 'menu';
                 }
             }
