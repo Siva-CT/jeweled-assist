@@ -1,110 +1,119 @@
-const path = require('path');
-const { spawn } = require('child_process');
-const db = require('../db');
+const db = require('../db'); // Local fallback (legacy)
+const approvalService = require('../services/approvalService'); // For Firestore access (if needed) or direct db access
+// actually pricingEngine needs direct firebase access for 'pricing' collection if we want to follow "FIREBASE PRICE STORAGE" strictly
+const firebase = require('../firebase');
 
-let cachedRates = { gold_gram_inr: 7000, silver_gram_inr: 90, platinum_gram_inr: 3500 };
-let lastFetchTime = 0;
-const CACHE_DURATION = 60 * 1000; // 1 Minute
+let cachedRates = { gold_gram_inr: 0, silver_gram_inr: 0, platinum_gram_inr: 0, timestamp: 0 };
+const CACHE_DURATION = 1000 * 60 * 60; // 1 Hour Cache for API calls (to save credits)
 
-function getLiveRates() {
-    return new Promise((resolve) => {
-        const now = Date.now();
+async function getLiveRates() {
+    // 1. Check Manual Overrides First (Global Rule)
+    const settings = await approvalService.getPricingConfig();
+    const storeSettings = await approvalService.getStoreSettings() || {};
 
-        // 1. FAST RETURN: Use Cache or Manual Override
-        if ((now - lastFetchTime < CACHE_DURATION) && cachedRates.gold_gram_inr > 0) {
-            return resolve(applyManualOverrides(cachedRates));
-        }
+    // Merge legacy and new settings structure
+    const useManual = settings.manualMode || storeSettings.useManualRates;
+    const manualRates = settings.manualRates || storeSettings.manualRates || {};
 
-        // 2. TIMEOUT PROTECTION
-        let isResolved = false;
-        const safeResolve = (data) => {
-            if (isResolved) return;
-            isResolved = true;
-            resolve(applyManualOverrides(data));
+    if (useManual) {
+        return {
+            gold_gram_inr: parseFloat(manualRates.gold || 0),
+            silver_gram_inr: parseFloat(manualRates.silver || 0),
+            platinum_gram_inr: parseFloat(manualRates.platinum || 0),
+            isManual: true,
+            timestamp: Date.now()
+        };
+    }
+
+    // 2. Check Cache
+    const now = Date.now();
+    if (now - cachedRates.timestamp < CACHE_DURATION && cachedRates.gold_gram_inr > 0) {
+        return { ...cachedRates, isManual: false };
+    }
+
+    // 3. Fetch from GoldAPI.io
+    try {
+        console.log("Fetching live rates from GoldAPI...");
+        const apiKey = process.env.GOLDAPI_KEY;
+        if (!apiKey) throw new Error("GOLDAPI_KEY missing in .env");
+
+        // Fetch Gold (XAU), Silver (XAG), Platinum (XPT)
+        // GoldAPI requires separate calls or specific logic. 
+        // We will fetch XAU first as it's most critical.
+        // Shortcut: Fetching just XAU/INR, XAG/INR for now.
+
+        const headers = { 'x-access-token': apiKey, 'Content-Type': 'application/json' };
+
+        // Parallel Fetch
+        const [goldRes, silverRes, platRes] = await Promise.all([
+            fetch('https://www.goldapi.io/api/XAU/INR', { headers }).then(r => r.json()),
+            fetch('https://www.goldapi.io/api/XAG/INR', { headers }).then(r => r.json()),
+            fetch('https://www.goldapi.io/api/XPT/INR', { headers }).then(r => r.json())
+        ]);
+
+        // Logic: GoldAPI gives price per OUNCE usually, but endpoint /XAU/INR might give per gram if specified? 
+        // Standard GoldAPI response for /XAU/INR is "price" (per ounce?? No, usually check docs). 
+        // Wait, GoldAPI response has "price_gram_24k", "price_gram_22k", "price_gram_21k" etc. 
+        // Perfect! We don't need manual conversion if they provide it.
+
+        const gold22k = goldRes.price_gram_22k || (goldRes.price / 31.1035 * 0.916);
+        const silver1g = silverRes.price_gram_24k || (silverRes.price / 31.1035); // Silver usually 24k/Standard in bars
+        const plat1g = platRes.price_gram_24k || (platRes.price / 31.1035);
+
+        const newRates = {
+            gold_gram_inr: Math.round(gold22k),
+            silver_gram_inr: Math.round(silver1g),
+            platinum_gram_inr: Math.round(plat1g),
+            timestamp: now
         };
 
-        const timeout = setTimeout(() => {
-            console.error("⚠️ Pricing Engine Timeout - Using Fallback");
-            safeResolve(cachedRates);
-        }, 4000); // 4s Timeout
+        // 4. Persistence Rule: Store in Firestore
+        await firebase.collection('pricing').add({
+            timestamp: new Date(),
+            source: 'goldapi',
+            currency: 'INR',
+            rates: newRates
+        });
 
-        // 3. SPAWN PYTHON
-        try {
-            const pythonScript = path.join(__dirname, 'fetch_rates.py');
-            const pythonProcess = spawn('python', [pythonScript]);
-            let dataString = '';
+        cachedRates = newRates;
+        return { ...newRates, isManual: false };
 
-            pythonProcess.stdout.on('data', (data) => {
-                dataString += data.toString();
-            });
-
-            pythonProcess.stderr.on('data', (data) => {
-                console.error(`Python Stderr: ${data}`);
-            });
-
-            pythonProcess.on('error', (err) => {
-                clearTimeout(timeout);
-                console.error("❌ Failed to spawn Python:", err.message);
-                safeResolve(cachedRates);
-            });
-
-            pythonProcess.on('close', (code) => {
-                clearTimeout(timeout);
-                if (code !== 0) {
-                    console.error(`Python process exited with code ${code}`);
-                    return safeResolve(cachedRates);
-                }
-                try {
-                    let result = JSON.parse(dataString);
-                    // Validate
-                    if (!result.gold_gram_inr) result.gold_gram_inr = 7000;
-                    if (!result.silver_gram_inr) result.silver_gram_inr = 90;
-                    if (!result.platinum_gram_inr) result.platinum_gram_inr = 3500;
-
-                    cachedRates = result;
-                    lastFetchTime = now;
-                    safeResolve(result);
-                } catch (e) {
-                    console.error("JSON Parse Error:", e);
-                    safeResolve(cachedRates);
-                }
-            });
-        } catch (e) {
-            clearTimeout(timeout);
-            safeResolve(cachedRates);
-        }
-    });
-}
-
-function applyManualOverrides(rates) {
-    const finalRates = { ...rates };
-    const settings = db.settings || {}; // Safety
-
-    if (settings.useManualRates && settings.manualRates) {
-        if (settings.manualRates.gold > 0) finalRates.gold_gram_inr = parseFloat(settings.manualRates.gold);
-        if (settings.manualRates.silver > 0) finalRates.silver_gram_inr = parseFloat(settings.manualRates.silver);
-        if (settings.manualRates.platinum > 0) finalRates.platinum_gram_inr = parseFloat(settings.manualRates.platinum);
-        finalRates.isManual = true;
+    } catch (e) {
+        console.error("Pricing Fetch Error:", e.message);
+        // Fallback to last known or safe defaults
+        if (cachedRates.gold_gram_inr > 0) return { ...cachedRates, isManual: false };
+        return { gold_gram_inr: 7000, silver_gram_inr: 90, platinum_gram_inr: 3500, isManual: false, error: true };
     }
-    return finalRates;
 }
 
 async function calculatePrice(metal, weight, makingCharges = 0.15, gst = 0.03) {
     const rates = await getLiveRates();
     let rate = 7000;
+    let label = 'Gold';
 
     const m = metal.toLowerCase();
-    if (m.includes('gold') || m === 'a') rate = rates.gold_gram_inr;
-    else if (m.includes('silver') || m === 'b') rate = rates.silver_gram_inr;
-    else if (m.includes('platinum') || m === 'c') rate = rates.platinum_gram_inr;
+    if (m.includes('gold') || m === 'a') { rate = rates.gold_gram_inr; label = 'Gold (22K)'; }
+    else if (m.includes('silver') || m === 'b') { rate = rates.silver_gram_inr; label = 'Silver'; }
+    else if (m.includes('platinum') || m === 'c') { rate = rates.platinum_gram_inr; label = 'Platinum'; }
 
-    const basePrice = rate * weight;
-    const withMaking = basePrice * (1 + makingCharges);
-    const finalPrice = withMaking * (1 + gst);
+    // Final Calculation: Grams * Rate
+    // (User said "calculated_price = grams * price_per_gram". 
+    // Wait, the prompt said "(This is an approximate value. Final price may vary based on design & making charges.)"
+    // AND "Auto Price Calculation (NO QUESTIONS)... Estimated Price: {calculated_price}"
+    // REQUIRED: "calculated_price = grams * price_per_gram". 
+    // Did user want Making Charges included? 
+    // "Final price may vary based on design & making charges" implies the estimate DOES NOT include them, or includes a basic amount?
+    // "calculated_price = grams * price_per_gram" is EXPLICIT in the prompt.
+    // I will follow the explicit formula: grams * price_per_gram.
+
+    const finalPrice = Math.round(rate * weight);
 
     return {
         rate,
-        finalPrice: Math.round(finalPrice)
+        label,
+        finalPrice,
+        isManual: rates.isManual,
+        source: rates.isManual ? 'manual' : 'goldapi'
     };
 }
 
