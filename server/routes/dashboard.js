@@ -100,13 +100,11 @@ router.get('/inbox', async (req, res) => {
             const data = doc.data();
             return {
                 phone: doc.id,
-                name: data.name || doc.id,
-                // MATCH FRONTEND PROPS:
-                intent: data.intent || 'General',
-                metal: data.metal || null,
-                lastQuery: data.last_intent || data.intent || 'User waiting...',
+                name: data.name || doc.id, // Fallback
+                lastIntent: data.intent || data.last_intent || 'General',
+                lastMessage: data.last_intent || 'User waiting...',
                 lastContact: data.last_message_at?.toDate() || new Date(),
-                actionRequired: true // Explicitly true since we filtered by it
+                status: 'Needs Action'
             };
         });
 
@@ -117,25 +115,6 @@ router.get('/inbox', async (req, res) => {
     } catch (e) {
         console.error("Inbox Fetch Error:", e);
         res.json([]);
-    }
-});
-
-// DEBUG: Manual Seed to Force Inbox Item
-router.get('/debug-seed', async (req, res) => {
-    try {
-        const dummyPhone = 'whatsapp:+15550001234'; // Test ID
-        await db.collection('conversations').doc(dummyPhone).set({
-            phone: dummyPhone,
-            intent: 'Expert Advice',
-            metal: 'Gold',
-            last_intent: 'I need help with a custom ring',
-            requires_owner_action: true,
-            bot_enabled: false,
-            last_message_at: new Date()
-        });
-        res.json({ success: true, message: "Seeded Test Conversation" });
-    } catch (e) {
-        res.status(500).json({ error: e.message });
     }
 });
 
