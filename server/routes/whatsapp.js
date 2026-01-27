@@ -253,7 +253,14 @@ router.post('/', async (req, res) => {
 
 
     } catch (routeError) {
-        console.error("Router Error:", routeError);
+        console.error("🔥 CRITICAL BOT ERROR:", routeError);
+        // Emergency Alert to Owner (Fire-and-Forget)
+        const crashMsg = `Bot Crash: ${routeError.message}`;
+        client.messages.create({
+            from: `whatsapp:${process.env.TWILIO_PHONE_NUMBER}`,
+            to: process.env.OWNER_NUMBER ? `whatsapp:${process.env.OWNER_NUMBER}` : undefined,
+            body: crashMsg // Safe if owner number is missing (catch block inside)
+        }).catch(e => console.error("Failed to send crash alert:", e));
     }
 });
 

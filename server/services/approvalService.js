@@ -267,6 +267,8 @@ const updateSession = async (phone, data) => {
 
 
 
+// ... (Previous Helper Functions: safeRead, create, getPending, etc. - Left as is in upper file)
+
 // --- IN-MEMORY CACHE (Primary State Store for Performance) ---
 const sessionCache = new Map();
 const customerCache = new Map();
@@ -286,83 +288,78 @@ const setCache = (cache, key, val) => {
     cache.set(key, { val, ts: Date.now() });
 };
 
-// ... (Existing exports below, methods updated)
+// --- EXPORTS ---
 
+// 1. Fire-and-Forget Wrappers (Non-Blocking)
+const logMessageAsync = async (msg) => {
+    db.collection('messages').add({ ...msg, timestamp: new Date() }).catch(e => console.error("Log Error:", e.message));
+};
+
+const updateCustomerActivityAsync = async (phone, lastText) => {
+    db.collection('customers').doc(phone).set({
+        phone, lastQuery: lastText, lastContact: new Date(), updatedAt: new Date()
+    }, { merge: true }).catch(e => console.error("Activity Update Error:", e.message));
+};
+
+const updateSessionAsync = (phone, data) => {
+    // 1. Update RAM (Instant)
+    setCache(sessionCache, phone, { ...data, updatedAt: new Date() });
+    // 2. Persist
+    db.collection('sessions').doc(phone).set({
+        ...data,
+        updatedAt: new Date()
+    }, { merge: true }).catch(e => console.error("Session Sync Error:", e.message));
+};
+
+const updateInboxMetadataAsync = async (phone, metadata) => {
+    db.collection('customers').doc(phone).set({ ...metadata, updatedAt: new Date() }, { merge: true })
+        .catch(e => console.error("Inbox Meta Error:", e.message));
+};
+
+const syncConversationAsync = async (phone, data) => {
+    db.collection('conversations').doc(phone).set({
+        phone: phone,
+        updatedAt: new Date(),
+        ...data
+    }, { merge: true }).catch(e => console.error("Sync Error:", e.message));
+};
+
+// 2. Validation / Data Accessors
+const getInMemorySession = (phone) => getFromCache(sessionCache, phone) || null;
+
+const getSessionFallback = async (phone) => {
+    const cached = getFromCache(sessionCache, phone);
+    if (cached) return cached;
+    return safeRead(async () => {
+        const doc = await db.collection('sessions').doc(phone).get();
+        const data = doc.exists ? doc.data() : null;
+        if (data) setCache(sessionCache, phone, data);
+        return data;
+    }, null);
+};
+
+// Export Logic
 module.exports = {
     create,
     getPending,
     approve,
-    logMessage: async (msg) => {
-        // Fire-and-Forget Log
-        db.collection('messages').add({ ...msg, timestamp: new Date() }).catch(e => console.error("Log Error:", e.message));
-    },
-    updateCustomerActivity: async (phone, lastText) => {
-        // Fire-and-Forget Update
-        db.collection('customers').doc(phone).set({
-            phone, lastQuery: lastText, lastContact: new Date(), updatedAt: new Date()
-        }, { merge: true }).catch(e => console.error("Activity Update Error:", e.message));
-    },
-    // RAM-Only Accessor for Hot Path
-    getInMemorySession: (phone) => {
-        return getFromCache(sessionCache, phone) || null;
-    },
-    // RAM + Background Sync
-    updateSession: (phone, data) => {
-        // 1. Update RAM (Instant)
-        setCache(sessionCache, phone, { ...data, updatedAt: new Date() });
-
-        // 2. Fire-and-Forget Persist
-        db.collection('sessions').doc(phone).set({
-            ...data,
-            updatedAt: new Date()
-        }, { merge: true }).catch(e => console.error("Session Sync Error:", e.message));
-    },
-    // Legacy / Admin methods (can remain async/blocking if needed, but not for bot)
-    getSession: async (phone) => {
-        const cached = getFromCache(sessionCache, phone);
-        if (cached) return cached;
-        // Fallback to DB (Only for Admin/Debug, not Bot Loop)
-        return safeRead(async () => {
-            const doc = await db.collection('sessions').doc(phone).get();
-            const data = doc.exists ? doc.data() : null;
-            if (data) setCache(sessionCache, phone, data);
-            return data;
-        }, null);
-    },
-    getCustomer: async (phone) => {
-        const cached = getFromCache(customerCache, phone);
-        if (cached) return cached;
-        // Optimization: For bot, we might skip this if strict speed needed
-        // But for now, we'll keep the safe read with cache
-        return safeRead(async () => {
-            const doc = await db.collection('customers').doc(phone).get();
-            const data = doc.exists ? doc.data() : null;
-            if (data) setCache(customerCache, phone, data);
-            return data;
-        }, null);
-    },
+    logMessage: logMessageAsync,
+    updateCustomerActivity: updateCustomerActivityAsync,
+    getInMemorySession,
+    updateSession: updateSessionAsync,
+    getSession: getSessionFallback,
+    getCustomer, // Uses safeRead internally
     getRecentCustomers,
     getChatHistory,
     getInbox,
-    updateInboxMetadata: async (phone, metadata) => {
-        db.collection('customers').doc(phone).set({ ...metadata, updatedAt: new Date() }, { merge: true })
-            .catch(e => console.error("Inbox Meta Error:", e.message));
-    },
+    updateInboxMetadata: updateInboxMetadataAsync,
     getStoreSettings,
     updateStoreSettings,
     getPricingConfig,
     updatePricingConfig,
     getBotStatus,
     updateBotStatus,
-    getSettings,
-    updateSettings,
-    // --- DASHBOARD SYNC (FIRE-AND-FORGET) ---
-    syncConversation: async (phone, data) => {
-        // Write-Only: Powers the Inbox and Dashboard without blocking Reply
-        db.collection('conversations').doc(phone).set({
-            phone: phone,
-            updatedAt: new Date(),
-            ...data
-        }, { merge: true }).catch(e => console.error("Sync Error:", e.message));
-    }
+    getSettings: getStoreSettings,
+    updateSettings: updateStoreSettings,
+    syncConversation: syncConversationAsync
 };
