@@ -2,7 +2,85 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+    /* Base Backgrounds */
+    --bg-deep: #020B13;
+    --bg-panel: #0A141D;
+    --bg-hover: #13202C;
+
+    /* Text */
+    --text-primary: #F5F5F5;
+    --text-secondary: #94A3B8;
+
+    /* Accents */
+    --gold-primary: #D5B038;
+    --gold-dim: #997B1A;
+    --gold-glow: rgba(213, 176, 56, 0.2);
+
+    /* Status */
+    --status-bot: #10B981;
+    --status-human: #EF4444;
+    --status-pending: #F59E0B;
+}
+
 body {
-    background-color: #050505;
-    color: #ffffff;
+    background-color: var(--bg-deep);
+    color: var(--text-primary);
+    font-family: 'Inter', sans-serif;
+    overflow: hidden;
+    /* Prevent body scroll for app-like feel */
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+::-webkit-scrollbar-track {
+    background: var(--bg-deep);
+}
+
+::-webkit-scrollbar-thumb {
+    background: #334155;
+    border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--gold-dim);
+}
+
+/* Utilities */
+.glass-panel {
+    background: rgba(10, 20, 29, 0.7);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.text-gold {
+    color: var(--gold-primary);
+}
+
+.bg-gold {
+    background-color: var(--gold-primary);
+}
+
+.border-gold {
+    border-color: var(--gold-primary);
+}
+
+.animate-pulse-slow {
+    animation: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes pulse {
+
+    0%,
+    100% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: .7;
+    }
 }

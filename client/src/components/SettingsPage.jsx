@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Save } from 'lucide-react';
+import { Save, AlertTriangle } from 'lucide-react';
 import { API_URL } from '../config';
 
 const SettingsPage = () => {
@@ -36,83 +36,81 @@ const SettingsPage = () => {
             body: JSON.stringify(settings)
         });
         setLoading(false);
-        alert('Settings Saved!');
+        // Toast could go here
     };
 
-    return (
-        <div className="p-8 max-w-4xl mx-auto">
-            <h2 className="text-3xl font-bold mb-8 text-white">System Settings</h2>
+    const isManualMode = settings.manualRates?.gold || settings.manualRates?.silver;
 
-            <div className="grid gap-6">
-                {/* General Settings */}
-                <div className="bg-[#121212] p-6 rounded-xl border border-white/10">
-                    <h3 className="text-xl font-bold mb-4 text-yellow-500">General Configuration</h3>
-                    <div className="space-y-4">
-                        <div>
-                            <label className="block text-sm text-gray-400 mb-1">Store Location</label>
-                            <input
-                                className="w-full bg-black/50 border border-white/10 rounded-lg p-3 text-white"
-                                value={settings.storeLocation}
-                                onChange={e => handleChange('storeLocation', e.target.value)}
-                            />
-                        </div>
-                        <div>
-                            <label className="block text-sm text-gray-400 mb-1">Owner WhatsApp (Admin)</label>
-                            <input
-                                className="w-full bg-black/50 border border-white/10 rounded-lg p-3 text-white"
-                                value={settings.ownerNumber}
-                                onChange={e => handleChange('ownerNumber', e.target.value)}
-                            />
-                            <p className="text-xs text-gray-500 mt-1">This number will have Admin commands access.</p>
-                        </div>
+    return (
+        <div className="space-y-6">
+            {/* Warning Banner */}
+            {isManualMode && (
+                <div className="bg-yellow-500/10 border border-yellow-500/20 p-4 rounded-xl flex items-center gap-3">
+                    <AlertTriangle className="text-yellow-500" size={20} />
+                    <div className="text-sm">
+                        <span className="text-yellow-500 font-bold block">Manual Pricing Active</span>
+                        <span className="text-gray-400">Live market rates are currently overridden.</span>
                     </div>
                 </div>
+            )}
 
-                {/* Automation Rules */}
-                <div className="bg-[#121212] p-6 rounded-xl border border-white/10">
-                    <h3 className="text-xl font-bold mb-4 text-yellow-500">Automation Rules</h3>
-                    <div>
-                        <label className="block text-sm text-gray-400 mb-1">Approval Threshold (₹)</label>
-                        <div className="flex items-center gap-4">
+            <div className="space-y-4">
+                {/* General */}
+                <div className="space-y-2">
+                    <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider">Store Profile</h3>
+                    <input
+                        className="w-full bg-[#050b11] border border-white/10 focus:border-[var(--gold-primary)] rounded-lg p-3 text-white text-sm outline-none transition-colors"
+                        value={settings.storeLocation}
+                        onChange={e => handleChange('storeLocation', e.target.value)}
+                        placeholder="Google Maps Link"
+                    />
+                    <input
+                        className="w-full bg-[#050b11] border border-white/10 focus:border-[var(--gold-primary)] rounded-lg p-3 text-white text-sm outline-none transition-colors"
+                        value={settings.ownerNumber}
+                        onChange={e => handleChange('ownerNumber', e.target.value)}
+                        placeholder="Owner WhatsApp (e.g. +91...)"
+                    />
+                </div>
+
+                <div className="h-px bg-white/5 my-4"></div>
+
+                {/* Rates */}
+                <div className="space-y-3">
+                    <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider">Pricing Engine</h3>
+
+                    <div className="grid grid-cols-2 gap-3">
+                        <div className="col-span-2">
+                            <label className="text-xs text-gray-500 mb-1 block">Approval Threshold (₹{settings.approvalThreshold})</label>
                             <input
                                 type="range" min="5000" max="100000" step="1000"
-                                className="flex-1 accent-yellow-500"
+                                className="w-full accent-[var(--gold-primary)] h-1 bg-gray-800 rounded-lg appearance-none cursor-pointer"
                                 value={settings.approvalThreshold}
                                 onChange={e => handleChange('approvalThreshold', parseInt(e.target.value))}
                             />
-                            <span className="text-xl font-mono text-yellow-500">₹{settings.approvalThreshold}</span>
                         </div>
-                        <p className="text-xs text-gray-500 mt-2">Estimates below this value are auto-approved by AI.</p>
-                    </div>
-                </div>
 
-                {/* Pricing Overrides */}
-                <div className="bg-[#121212] p-6 rounded-xl border border-white/10">
-                    <h3 className="text-xl font-bold mb-4 text-yellow-500">Manual Pricing Overrides</h3>
-                    <div className="grid grid-cols-3 gap-4">
                         {['gold', 'silver', 'platinum'].map(metal => (
-                            <div key={metal}>
-                                <label className="block text-sm text-gray-400 mb-1 capitalize">{metal} Rate</label>
+                            <div key={metal} className="relative">
+                                <label className="absolute -top-2 left-2 text-[9px] bg-[var(--bg-panel)] px-1 text-[var(--gold-primary)] uppercase font-bold tracking-wider">{metal}</label>
                                 <input
-                                    className="w-full bg-black/50 border border-white/10 rounded-lg p-3 text-white"
+                                    className="w-full bg-[#050b11] border border-white/10 focus:border-[var(--gold-primary)] rounded-lg p-3 text-white text-right font-mono outline-none transition-colors"
                                     type="number"
-                                    placeholder="Auto"
+                                    placeholder="Live"
                                     value={settings.manualRates?.[metal]}
                                     onChange={e => handleRateChange(metal, e.target.value)}
                                 />
                             </div>
                         ))}
                     </div>
-                    <p className="text-xs text-gray-500 mt-2">Leave empty to use Live Market Rates.</p>
                 </div>
 
                 <button
                     onClick={handleSave}
                     disabled={loading}
-                    className="bg-yellow-500 text-black font-bold py-4 rounded-xl flex items-center justify-center gap-2 hover:bg-yellow-400 transition-colors"
+                    className="w-full bg-[var(--gold-primary)] hover:bg-[var(--gold-dim)] text-black font-bold py-3 rounded-xl flex items-center justify-center gap-2 transition-all mt-4"
                 >
-                    <Save size={20} />
-                    {loading ? 'Saving...' : 'Save All Settings'}
+                    <Save size={18} />
+                    {loading ? 'Saving...' : 'Update Settings'}
                 </button>
             </div>
         </div>
