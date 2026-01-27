@@ -84,10 +84,7 @@ router.post('/', async (req, res) => {
         let session = await approvalService.getSession(From) || { step: 'welcome', mode: 'bot', buyFlow: {} };
         if (!session.buyFlow) session.buyFlow = {};
 
-        // Increment Monthly Stats
-        if (session.step === 'welcome' || cleanInput === 'start' || cleanInput === 'hi') {
-            await approvalService.incrementMonthlyQueries();
-        }
+
 
         await approvalService.logMessage({ from: From, to: 'admin', text: input });
         await approvalService.updateCustomerActivity(From, input);

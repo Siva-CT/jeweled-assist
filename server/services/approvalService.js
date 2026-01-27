@@ -247,48 +247,8 @@ const updateSession = async (phone, data) => {
 };
 
 // --- ANALYTICS ---
+// Removed for production stability
 
-const incrementMonthlyQueries = async () => {
-    const now = new Date();
-    const monthKey = `enquiries_${now.getFullYear()}_${String(now.getMonth() + 1).padStart(2, '0')}`;
-    const statsRef = db.collection('analytics').doc('monthly');
-    try {
-        await db.runTransaction(async (t) => {
-            const doc = await t.get(statsRef);
-            const current = doc.exists ? (doc.data()[monthKey] || 0) : 0;
-            t.set(statsRef, { [monthKey]: current + 1 }, { merge: true });
-        });
-    } catch (e) { console.error("Analytics Inc Error", e); }
-};
-
-const getMonthlyStats = async () => {
-    return safeRead(async () => {
-        const now = new Date();
-        const monthKey = `enquiries_${now.getFullYear()}_${String(now.getMonth() + 1).padStart(2, '0')}`;
-        const doc = await db.collection('analytics').doc('monthly').get();
-        return { totalQueries: doc.exists ? (doc.data()[monthKey] || 0) : 0 };
-    }, { totalQueries: 0 });
-};
-
-const getMonthlyCustomerAnalytics = async () => {
-    return safeRead(async () => {
-        const now = new Date();
-        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-        const snapshot = await db.collection('customers')
-            .where('updatedAt', '>=', startOfMonth)
-            .limit(20)
-            .get();
-        return snapshot.docs.map(doc => {
-            const d = doc.data();
-            return {
-                customer: doc.id,
-                queriesThisMonth: 1,
-                queryTypes: d.intent || 'General',
-                storeVisit: d.storeVisitScheduled ? 'Yes' : 'No'
-            };
-        });
-    }, []);
-};
 
 
 
@@ -312,8 +272,5 @@ module.exports = {
     getSettings,
     updateSettings,
     getSession,
-    updateSession,
-    incrementMonthlyQueries,
-    getMonthlyStats,
-    getMonthlyCustomerAnalytics
+    updateSession
 };
