@@ -154,6 +154,32 @@ const approvalService = {
             return all.filter(m => m.from === phone || m.to === phone).reverse();
         }
     }
+    /**
+     * Get Settings
+     */
+    getSettings: async () => {
+        try {
+            const doc = await db.collection('config').doc('main').get();
+            if (!doc.exists) return null;
+            return doc.data();
+        } catch (e) {
+            console.error("Firebase Settings Fetch Error:", e);
+            return null;
+        }
+    },
+
+    /**
+     * Update Settings
+     */
+    updateSettings: async (newSettings) => {
+        try {
+            await db.collection('config').doc('main').set(newSettings, { merge: true });
+            return true;
+        } catch (e) {
+            console.error("Firebase Settings Update Error:", e);
+            return false;
+        }
+    }
 };
 
 module.exports = approvalService;

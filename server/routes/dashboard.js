@@ -120,14 +120,22 @@ router.post('/nudge', async (req, res) => {
 });
 
 // Update Settings
-router.post('/settings', (req, res) => {
+router.post('/settings', async (req, res) => {
     Object.assign(db.settings, req.body);
-    db.save(); // SAVE
+    // Persist to File (Legacy/Backup)
+    db.save();
+    // Persist to Firestore (Live/Render)
+    await approvalService.updateSettings(db.settings);
     res.json({ success: true, settings: db.settings });
 });
 
 // Get Settings
-router.get('/settings', (req, res) => {
+router.get('/settings', async (req, res) => {
+    const remote = await approvalService.getSettings();
+    if (remote) {
+        Object.assign(db.settings, remote);
+        db.save();
+    }
     res.json(db.settings);
 });
 

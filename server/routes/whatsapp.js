@@ -46,6 +46,10 @@ async function sendReply(to, body, mediaUrl = null) {
 
         // Log to Firebase
         await approvalService.logMessage({ from: 'bot', to: to, text: body });
+        // Update Customer Activity (if not bot)
+        if (to !== 'admin' && to !== 'owner' && !to.startsWith('whatsapp:')) {
+            await approvalService.updateCustomerActivity(to, "Bot: " + body.substring(0, 20) + "...");
+        }
     } catch (e) {
         console.error("Twilio Error:", e);
     }
@@ -55,7 +59,11 @@ async function notifyOwner(message, context = {}) {
     if (context.customer) {
         db.ownerContext = { customer: context.customer, reqId: context.reqId };
     }
-    const ownerNum = db.settings.ownerNumber.startsWith('whatsapp:') ? db.settings.ownerNumber : `whatsapp:${db.settings.ownerNumber}`;
+    // Refresh Settings for Owner Number
+    const remoteSettings = await approvalService.getSettings();
+    const currentOwner = remoteSettings?.ownerNumber || db.settings.ownerNumber;
+
+    const ownerNum = currentOwner.startsWith('whatsapp:') ? currentOwner : `whatsapp:${currentOwner}`;
     await client.messages.create({
         from: `whatsapp:${process.env.TWILIO_PHONE_NUMBER}`,
         to: ownerNum,
@@ -72,6 +80,12 @@ router.post('/', async (req, res) => {
 
         if (processedMessages.has(MessageSid)) return;
         processedMessages.add(MessageSid);
+
+        // SYNC SETTINGS (Ensure we have latest Owner Number)
+        const remoteSettings = await approvalService.getSettings();
+        if (remoteSettings) {
+            Object.assign(db.settings, remoteSettings);
+        }
 
         const input = Body?.trim();
         const cleanInput = input?.toLowerCase() || '';
