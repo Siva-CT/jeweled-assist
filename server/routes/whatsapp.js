@@ -106,7 +106,7 @@ router.post('/', async (req, res) => {
             replyMedia = "https://drive.google.com/uc?export=view&id=1XlsK-4OS5qrs87W9bRNwTXxxcilGgc3q"; // Send image on welcome
         }
 
-        // --- 2.2. STATE MACHINE (If not resetting) ---
+        // --- 2.2. STATE MACHINE (Strict Flows) ---
         else if (session.step === 'menu') {
             if (cleanInput.includes('1') || cleanInput.includes('buy')) {
                 nextStep = 'buy_metal';
@@ -118,9 +118,9 @@ router.post('/', async (req, res) => {
             }
             else if (cleanInput.includes('3') || cleanInput.includes('expert') || cleanInput.includes('advice')) {
                 nextMode = 'agent';
-                replyText = `Thank you 😊\nOur expert has been notified and will message you shortly to assist with your request.\n\nType *0* to return to the main menu.`;
+                replyText = `Thank you 😊\nOur expert has been notified and will message you shortly.\n\nType *0* to return to the main menu.`;
 
-                // BACKGROUND SYNC: Trigger Inbox Alert
+                // BACKGROUND SYNC: Trigger Inbox Alert (CRITICAL)
                 approvalService.syncConversation(From, {
                     requires_owner_action: true,
                     bot_enabled: false,
@@ -131,7 +131,8 @@ router.post('/', async (req, res) => {
                 notifyOwner(`💬 *Expert Advice Requested*\nCustomer: ${From}`);
             }
             else if (cleanInput.includes('4') || cleanInput.includes('location')) {
-                replyText = `📍 *Jeweled Showroom*\nChennai, India\n🕘 Timings: 10:00 AM – 9:00 PM\n\n🗺️ *Google Maps*:\nhttps://maps.google.com/?q=Jeweled+Showroom+Chennai\n\nType *0* to return to the main menu.`;
+                // EXACT LOCATION STRING
+                replyText = `📍 *Jeweled Showroom*\nChennai, India\n\n🕘 Timings: 10:00 AM – 9:00 PM\n\n🗺️ *Google Maps*:\nhttps://maps.google.com/?q=Jeweled+Showroom+Chennai\n\nType *0* to return to the main menu.`;
                 nextStep = 'menu';
                 approvalService.syncConversation(From, { intent: 'Store Location', last_message_at: new Date() });
             }
@@ -140,7 +141,7 @@ router.post('/', async (req, res) => {
             }
         }
 
-        // --- BUY FLOW (Strict: Metal -> Item -> Grams -> Price) ---
+        // --- BUY FLOW (Strict: Metal -> Item -> Grams -> GST Price) ---
         else if (session.step === 'buy_metal') {
             let metal = null;
             if (cleanInput.includes('a') || cleanInput.includes('gold')) metal = 'Gold';
@@ -201,7 +202,7 @@ router.post('/', async (req, res) => {
                 approvalService.syncConversation(From, {
                     intent: 'Buy Estimate',
                     last_message_at: new Date(),
-                    requires_owner_action: true // High intent
+                    requires_owner_action: true // Sales Lead
                 });
             } else { replyText = "Please enter a valid weight (e.g. 10)."; }
         }
@@ -215,7 +216,7 @@ router.post('/', async (req, res) => {
 
             if (metal) {
                 // END FLOW IMMEDIATELY
-                replyText = `Thank you 😊\n\nOld ${metal} value is calculated after purity testing at the store.\nThe final value depends on purity, weight & live rate.\n\n📍 *Visit us at*:\nhttps://maps.google.com/?q=Jeweled+Showroom+Chennai\n\nType *0* to return to the main menu.`;
+                replyText = `Thank you 😊\n\nPurity is tested in-store.\nFinal value depends on:\n- Purity\n- Weight\n- Live market rate\n\n📍 *Visit us at*:\nhttps://maps.google.com/?q=Jeweled+Showroom+Chennai\n\nType *0* to return to the main menu.`;
                 nextStep = 'menu';
 
                 approvalService.syncConversation(From, {
@@ -225,8 +226,8 @@ router.post('/', async (req, res) => {
                 });
             } else { replyText = "Please select A, B, or C."; }
         }
+        // DEFAULT HANDLER: Only loop if unrecognized AND not already in flow
         else {
-            // Unknown step? Reset.
             replyText = `💎 *Welcome back*\nType *0* to restart the menu.`;
             nextStep = 'menu';
         }
