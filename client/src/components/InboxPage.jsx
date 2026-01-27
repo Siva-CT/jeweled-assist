@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Filter, Bell, Phone, Video, MoreVertical, Paperclip, Send, Check, CheckCheck, User, X, MessageSquare } from 'lucide-react';
+import { Search, Filter, Bell, Phone, Video, MoreVertical, Paperclip, Send, Check, CheckCheck, User, X, MessageSquare, Bot } from 'lucide-react';
 import { API_URL } from '../config';
 
 const InboxPage = () => {
@@ -40,6 +40,46 @@ const InboxPage = () => {
         };
         fetchInbox();
     }, []);
+
+    const [botStatus, setBotStatus] = useState('agent'); // 'bot' | 'agent'
+    const [isToggling, setIsToggling] = useState(false);
+
+    // Fetch Bot Status when Chat Selected
+    useEffect(() => {
+        if (selectedChat?.phone) {
+            // Default to 'agent' for inbox items (since they are handoffs), but verify
+            setBotStatus('agent');
+            fetch(`${API_URL}/api/dashboard/bot-status/${selectedChat.phone}`)
+                .then(res => res.json())
+                .then(data => setBotStatus(data.mode))
+                .catch(err => console.error("Bot status fetch failed", err));
+        }
+    }, [selectedChat]);
+
+    const handleToggleBot = async () => {
+        if (!selectedChat || isToggling) return;
+        setIsToggling(true);
+        const newMode = botStatus === 'bot' ? 'agent' : 'bot';
+
+        try {
+            // Optimistic Update
+            setBotStatus(newMode);
+
+            await fetch(`${API_URL}/api/dashboard/toggle-bot`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ phone: selectedChat.phone, mode: newMode })
+            });
+
+            // If turning bot ON, maybe close the chat or refresh list?
+            // For now, just show status change. The polling will eventually remove it from list.
+        } catch (e) {
+            console.error("Toggle failed", e);
+            setBotStatus(botStatus); // Revert
+        } finally {
+            setIsToggling(false);
+        }
+    };
 
     const ChatMessage = ({ msg, isMe }) => (
         <div className={`flex ${isMe ? 'justify-end' : 'justify-start'} mb-4`}>
@@ -125,16 +165,35 @@ const InboxPage = () => {
                         <div>
                             <h3 className="text-lg font-bold text-white">{selectedChat.name}</h3>
                             <p className="text-xs text-[var(--text-muted)] flex items-center gap-2">
-                                <span className="w-1.5 h-1.5 bg-green-500 rounded-full"></span> Online
-                                <span className="w-1 h-1 bg-gray-600 rounded-full"></span>
-                                {selectedChat.type} Inquiry
+                                <span className={`w-1.5 h-1.5 rounded-full ${botStatus === 'bot' ? 'bg-green-500' : 'bg-blue-500'}`}></span>
+                                {botStatus === 'bot' ? 'Bot Handling' : 'Agent Active'}
                             </p>
                         </div>
-                        <div className="flex gap-4">
-                            <button className="p-2 hover:bg-[var(--bg-card)] rounded-lg text-[var(--text-secondary)] hover:text-white transition-colors"><Phone size={20} /></button>
-                            <button className="p-2 hover:bg-[var(--bg-card)] rounded-lg text-[var(--text-secondary)] hover:text-white transition-colors"><Video size={20} /></button>
-                            <button className="p-2 hover:bg-[var(--bg-card)] rounded-lg text-[var(--text-secondary)] hover:text-white transition-colors"><MoreVertical size={20} /></button>
-                            <button onClick={() => setSelectedChat(null)} className="p-2 hover:bg-[var(--bg-card)] rounded-lg text-[var(--text-secondary)] hover:text-white transition-colors ml-4"><X size={20} /></button>
+                        <div className="flex gap-4 items-center">
+                            {/* Bot Toggle Switch */}
+                            <button
+                                onClick={handleToggleBot}
+                                disabled={isToggling}
+                                className={`flex items-center gap-2 px-4 py-2 rounded-lg font-bold text-xs transition-all border
+                                    ${botStatus === 'bot'
+                                        ? 'bg-green-900/20 text-green-400 border-green-500/30 hover:bg-green-900/30'
+                                        : 'bg-blue-900/20 text-blue-400 border-blue-500/30 hover:bg-blue-900/30'
+                                    }`}
+                            >
+                                {botStatus === 'bot' ? (
+                                    <>
+                                        <Bot size={16} /> Bot Active
+                                    </>
+                                ) : (
+                                    <>
+                                        <User size={16} /> User Agent
+                                    </>
+                                )}
+                            </button>
+
+                            <button onClick={() => setSelectedChat(null)} className="p-2 hover:bg-[var(--bg-card)] rounded-lg text-[var(--text-secondary)] hover:text-white transition-colors ml-2">
+                                <X size={20} />
+                            </button>
                         </div>
                     </div>
 
@@ -151,13 +210,25 @@ const InboxPage = () => {
                             <span className="bg-[var(--bg-card)] text-[var(--text-muted)] text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-widest border border-[var(--border-dim)]">Today</span>
                         </div>
 
-                        {/* Bot Handoff Event */}
-                        <div className="flex justify-center mb-6">
-                            <div className="bg-blue-900/20 border border-blue-500/30 text-blue-400 text-xs px-4 py-2 rounded-lg flex items-center gap-2">
-                                <div className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-pulse"></div>
-                                AI Agent handed off this conversation. Reason: <strong>{selectedChat.type}</strong>
+                        {/* Bot Handoff Event (Conditional) */}
+                        {botStatus === 'agent' && (
+                            <div className="flex justify-center mb-6">
+                                <div className="bg-blue-900/20 border border-blue-500/30 text-blue-400 text-xs px-4 py-2 rounded-lg flex items-center gap-2">
+                                    <div className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-pulse"></div>
+                                    AI Agent handed off this conversation. Reason: <strong>{selectedChat.type}</strong>
+                                </div>
                             </div>
-                        </div>
+                        )}
+
+                        {/* Bot Active Event (Conditional) */}
+                        {botStatus === 'bot' && (
+                            <div className="flex justify-center mb-6">
+                                <div className="bg-green-900/20 border border-green-500/30 text-green-400 text-xs px-4 py-2 rounded-lg flex items-center gap-2">
+                                    <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></div>
+                                    Bot is currently managing this conversation.
+                                </div>
+                            </div>
+                        )}
 
                         <ChatMessage msg="Hi there! I was browsing your collection and saw the solitaire rings." isMe={false} />
                         <ChatMessage msg="I'm specifically looking for something around 2 carats, preferably with a classic gold band. Do you have options?" isMe={false} />
@@ -166,7 +237,7 @@ const InboxPage = () => {
                     </div>
 
                     {/* Input Area */}
-                    <div className="p-6 bg-[var(--bg-sidebar)] border-t border-[var(--border-dim)]">
+                    <div className={`p-6 bg-[var(--bg-sidebar)] border-t border-[var(--border-dim)] transition-opacity ${botStatus === 'bot' ? 'opacity-50 pointer-events-none grayscale' : 'opacity-100'}`}>
                         <div className="relative">
                             <div className="absolute left-2 top-2 flex gap-1">
                                 <button className="p-2 text-[var(--text-muted)] hover:text-white hover:bg-[var(--bg-card)] rounded-lg transition-colors"><Paperclip size={18} /></button>
@@ -175,7 +246,7 @@ const InboxPage = () => {
                                 type="text"
                                 value={inputText}
                                 onChange={(e) => setInputText(e.target.value)}
-                                placeholder="Type your reply..."
+                                placeholder={botStatus === 'bot' ? "Bot is active. Toggle to Agent to reply." : "Type your reply..."}
                                 className="w-full bg-[var(--bg-card)] border border-[var(--border-dim)] rounded-xl py-3 pl-12 pr-14 text-sm text-white focus:outline-none focus:border-[var(--primary)] transition-colors h-12"
                             />
                             <button className="absolute right-2 top-2 p-2 bg-[var(--primary)] hover:bg-[var(--primary-dim)] text-white rounded-lg transition-colors shadow-lg shadow-blue-900/20">

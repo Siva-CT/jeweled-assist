@@ -61,11 +61,7 @@ function App() {
                         <SettingsPage />
                     </div>
                 )}
-                {activePage === 'rates' && (
-                    <div className="p-8 flex items-center justify-center h-full text-gray-500">
-                        Live Rates Module (Coming Soon)
-                    </div>
-                )}
+
             </main>
         </div>
     );
