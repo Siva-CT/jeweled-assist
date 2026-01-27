@@ -6,11 +6,17 @@ let lastFetchTime = 0;
 const CACHE_DURATION = 60 * 1000;
 
 function getLiveRates() {
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve) => {
         const now = Date.now();
         if (cachedRates && (now - lastFetchTime < CACHE_DURATION)) {
             return resolve(cachedRates);
         }
+
+        // FAILSAFE: Force resolve after 3 seconds if Python hangs
+        const timeout = setTimeout(() => {
+            console.error("⚠️ Pricing Engine Timeout - Using Fallback");
+            resolve(cachedRates || { gold_gram_inr: 7650, silver_gram_inr: 92, platinum_gram_inr: 3500, status: 'fallback_timeout' });
+        }, 3000);
 
         const pythonScript = path.join(__dirname, 'fetch_rates.py');
         const pythonProcess = spawn('python', [pythonScript]);
@@ -24,14 +30,15 @@ function getLiveRates() {
             console.error(`Python Logic Error: ${data}`);
         });
 
-        // ... (inside pythonProcess listeners)
         pythonProcess.on('error', (err) => {
+            clearTimeout(timeout);
             console.error("❌ Failed to spawn Python:", err.message);
             // FALLBACK RATES (Approx Jan 2026)
             resolve(cachedRates || { gold_gram_inr: 7650, silver_gram_inr: 92, platinum_gram_inr: 3500, status: 'fallback_error' });
         });
 
         pythonProcess.on('close', (code) => {
+            clearTimeout(timeout);
             if (code !== 0) {
                 console.error(`Python process exited with code ${code}`);
                 return resolve(cachedRates || { gold_gram_inr: 7650, silver_gram_inr: 92, platinum_gram_inr: 3500, status: 'fallback_exit' });
