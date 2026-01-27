@@ -25,6 +25,7 @@ const defaultData = {
         ownerNumber: "919876543210",
         mapLink: "https://maps.google.com/?q=Jeweled+Showroom",
         approvalThreshold: 20000,
+        useManualRates: false,
         manualRates: { gold: 0, silver: 0, platinum: 0 }
     },
     stats: {

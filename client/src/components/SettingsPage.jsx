@@ -75,10 +75,26 @@ const SettingsPage = () => {
                 <div className="h-px bg-white/5 my-4"></div>
 
                 {/* Rates */}
-                <div className="space-y-3">
-                    <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider">Pricing Engine</h3>
+                <div className="bg-white/5 p-6 rounded-xl border border-white/10">
+                    <div className="flex justify-between items-center mb-6">
+                        <h3 className="text-xl font-bold flex items-center gap-2">
+                            <DollarSign className="text-[var(--gold-primary)]" />
+                            Pricing Configuration
+                        </h3>
+                        <div className="flex items-center gap-3">
+                            <span className={`text-sm ${!settings.useManualRates ? 'text-[var(--gold-primary)] font-bold' : 'text-gray-500'}`}>Live API</span>
+                            <button
+                                type="button"
+                                onClick={() => handleChange('useManualRates', !settings.useManualRates)}
+                                className={`w-12 h-6 rounded-full relative transition-colors ${settings.useManualRates ? 'bg-[var(--gold-primary)]' : 'bg-gray-700'}`}
+                            >
+                                <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${settings.useManualRates ? 'left-7' : 'left-1'}`} />
+                            </button>
+                            <span className={`text-sm ${settings.useManualRates ? 'text-[var(--gold-primary)] font-bold' : 'text-gray-500'}`}>Manual</span>
+                        </div>
+                    </div>
 
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className={`space-y-4 transition-opacity ${settings.useManualRates ? 'opacity-100' : 'opacity-40 pointer-events-none'}`}>
                         <div className="col-span-2">
                             <label className="text-xs text-gray-500 mb-1 block">Approval Threshold (₹{settings.approvalThreshold})</label>
                             <input
@@ -88,7 +104,6 @@ const SettingsPage = () => {
                                 onChange={e => handleChange('approvalThreshold', parseInt(e.target.value))}
                             />
                         </div>
-
                         {['gold', 'silver', 'platinum'].map(metal => (
                             <div key={metal} className="relative">
                                 <label className="absolute -top-2 left-2 text-[9px] bg-[var(--bg-panel)] px-1 text-[var(--gold-primary)] uppercase font-bold tracking-wider">{metal}</label>

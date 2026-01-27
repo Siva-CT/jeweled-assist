@@ -48,7 +48,7 @@ function getLiveRates() {
 
                 // Manual Override
                 const db = require('../db');
-                if (db.settings.manualRates) {
+                if (db.settings.useManualRates && db.settings.manualRates) {
                     if (db.settings.manualRates.gold > 0) result.gold_gram_inr = parseFloat(db.settings.manualRates.gold);
                     if (db.settings.manualRates.silver > 0) result.silver_gram_inr = parseFloat(db.settings.manualRates.silver);
                     if (db.settings.manualRates.platinum > 0) result.platinum_gram_inr = parseFloat(db.settings.manualRates.platinum);
