@@ -1,64 +1,67 @@
 import React from 'react';
-import { LayoutDashboard, TrendingUp, Store, MessageSquare, Bell, User } from 'lucide-react';
+import { LayoutDashboard, TrendingUp, Users, Calendar, Settings, LogOut, Bell, HelpCircle } from 'lucide-react';
 
 const Sidebar = ({ activePage, setActivePage }) => {
 
     const menuItems = [
         { id: 'dashboard', icon: LayoutDashboard, label: 'Overview' },
-        { id: 'rates', icon: TrendingUp, label: 'Live Rates' }, // Placeholder view or just scrolls
-        { id: 'settings', icon: Store, label: 'Store Settings' },
-        { id: 'inbox', icon: MessageSquare, label: 'AI Handoffs' },
-        { id: 'notifications', icon: Bell, label: 'Notifications' }
+        { id: 'rates', icon: TrendingUp, label: 'Live Rates' },
+        { id: 'customers', icon: Users, label: 'Customers' },
+        { id: 'inbox', icon: Calendar, label: 'Calendar / Events' }, // Reusing Inbox ID for now to avoid breaking App.jsx switch
+        { id: 'support', icon: HelpCircle, label: 'Support' },
+        { id: 'settings', icon: Settings, label: 'Settings' }
     ];
 
     return (
-        <div className="w-64 bg-[var(--bg-sidebar)] border-r border-[var(--border-dim)] h-full flex flex-col flex-shrink-0 z-20">
-            {/* Header */}
-            <div className="p-6 mb-2">
-                <div className="flex items-center gap-3 mb-1">
-                    <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white font-bold">💎</div>
-                    <span className="font-bold text-lg tracking-tight text-white">Jeweled Assist</span>
+        <div className="w-64 bg-[#1a1b23] h-full flex flex-col flex-shrink-0 border-r border-[#2a2b36]">
+            {/* Profile Section (Top) */}
+            <div className="p-8 pb-4 flex flex-col items-center">
+                <div className="w-16 h-16 rounded-2xl bg-[#fcd34d] mb-4 overflow-hidden border-2 border-white/5 relative">
+                    <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Angela" className="w-full h-full object-cover" alt="Profile" />
                 </div>
-                <div className="pl-11">
-                    <p className="text-xs font-bold text-white mb-0.5">Owner Dashboard</p>
-                    <p className="text-[10px] text-[var(--text-muted)]">Management Portal v2.4</p>
-                </div>
+                <h3 className="text-white font-bold text-lg">Angela Grey</h3>
+                <p className="text-xs text-gray-500 font-medium mt-1">angela@gmail.com</p>
             </div>
 
-            {/* Menu */}
-            <nav className="flex-1 px-4 space-y-1">
+            {/* Navigation */}
+            <nav className="flex-1 px-6 space-y-2 mt-8">
                 {menuItems.map((item) => {
                     const isActive = activePage === item.id;
                     return (
                         <button
                             key={item.id}
                             onClick={() => setActivePage(item.id)}
-                            className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all duration-200
+                            className={`w-full flex items-center gap-4 px-4 py-3.5 rounded-xl text-[13px] font-medium transition-all duration-200 group
                                 ${isActive
-                                    ? 'bg-[var(--primary)] text-white shadow-lg shadow-blue-900/20'
-                                    : 'text-[var(--text-secondary)] hover:bg-white/5 hover:text-white'
+                                    ? 'text-white' // Active: Just white text, usually has a side indicator or bold
+                                    : 'text-gray-500 hover:text-white'
                                 }`}
                         >
-                            <item.icon size={18} opacity={isActive ? 1 : 0.7} />
+                            {/* Icon Wrapper */}
+                            <div className={`transition-colors duration-200 ${isActive ? 'text-white' : 'text-gray-500 group-hover:text-white'}`}>
+                                <item.icon size={20} strokeWidth={2} />
+                            </div>
                             {item.label}
+
+                            {/* Active Indicator (Dot) - Optional based on image */}
                         </button>
                     )
                 })}
             </nav>
 
-            {/* User Footer */}
-            <div className="p-4 border-t border-[var(--border-dim)]">
-                <div className="flex items-center gap-3 p-2 rounded-lg hover:bg-white/5 transition-colors cursor-pointer">
-                    <div className="w-10 h-10 rounded-full bg-[#fde68a] overflow-hidden border-2 border-white/10 flex items-center justify-center">
-                        {/* Mock Avatar */}
-                        <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Rajesh" alt="User" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                        <p className="text-sm font-bold text-white truncate">Rajesh Kumar</p>
-                        <p className="text-xs text-[var(--text-muted)] truncate">Senior Admin</p>
-                    </div>
-                </div>
+            {/* Bottom Section */}
+            <div className="p-6 mb-4">
+                <button className="w-full flex items-center gap-4 px-4 py-3 text-gray-500 hover:text-white transition-colors text-[13px] font-medium">
+                    <LogOut size={20} />
+                    Logout
+                </button>
             </div>
+
+            {/* Decorative Background Lines (CSS optional) */}
+            <div className="absolute bottom-0 left-0 w-full h-64 pointer-events-none opacity-5" style={{
+                backgroundImage: 'radial-gradient(circle at bottom left, #ffffff 1px, transparent 1px)',
+                backgroundSize: '20px 20px'
+            }}></div>
         </div>
     );
 };
