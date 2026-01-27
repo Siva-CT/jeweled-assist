@@ -252,13 +252,51 @@ const updateSession = async (phone, data) => {
 
 
 
+// --- IN-MEMORY CACHE (Avoid Firestore Quota Exhaustion) ---
+const sessionCache = new Map();
+const customerCache = new Map();
+const CACHE_TTL = 60 * 1000; // 60 Seconds
+
+// Periodic Cache Cleanup (Every 5 mins)
+setInterval(() => {
+    sessionCache.clear();
+    customerCache.clear();
+}, 5 * 60 * 1000);
+
+// Helper for caching
+const getFromCache = (cache, key) => {
+    if (cache.has(key)) {
+        const item = cache.get(key);
+        if (Date.now() - item.ts < CACHE_TTL) return item.val;
+        cache.delete(key);
+    }
+    return null;
+};
+
+const setCache = (cache, key, val) => {
+    if (val) cache.set(key, { val, ts: Date.now() });
+};
+
+// ... (Existing exports below, methods updated)
+
 module.exports = {
     create,
     getPending,
     approve,
     logMessage,
     updateCustomerActivity,
-    getCustomer,
+    getCustomer: async (phone) => {
+        // Cache Check
+        const cached = getFromCache(customerCache, phone);
+        if (cached) return cached;
+
+        return safeRead(async () => {
+            const doc = await db.collection('customers').doc(phone).get();
+            const data = doc.exists ? doc.data() : null;
+            if (data) setCache(customerCache, phone, data);
+            return data;
+        }, null);
+    },
     getRecentCustomers,
     getChatHistory,
     getInbox,
@@ -271,6 +309,28 @@ module.exports = {
     updateBotStatus,
     getSettings,
     updateSettings,
-    getSession,
-    updateSession
+    getSession: async (phone) => {
+        // Cache Check
+        const cached = getFromCache(sessionCache, phone);
+        if (cached) return cached;
+
+        return safeRead(async () => {
+            const doc = await db.collection('sessions').doc(phone).get();
+            const data = doc.exists ? doc.data() : null;
+            if (data) setCache(sessionCache, phone, data);
+            return data;
+        }, null);
+    },
+    updateSession: async (phone, data) => {
+        // Update Cache Immediately
+        setCache(sessionCache, phone, { ...data, updatedAt: new Date() });
+        try {
+            await db.collection('sessions').doc(phone).set({
+                ...data,
+                updatedAt: new Date()
+            }, { merge: true });
+        } catch (e) {
+            console.error("Session Update Error", e);
+        }
+    }
 };

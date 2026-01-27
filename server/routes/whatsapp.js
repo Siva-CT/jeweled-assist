@@ -81,8 +81,21 @@ router.post('/', async (req, res) => {
         const cleanInput = input?.toLowerCase() || '';
 
         // --- 1. PERSISTENCE LAYER: FETCH SESSION FROM FIREBASE (Required for logic) ---
-        // We must await this as logic depends on it.
-        let session = await approvalService.getSession(From) || { step: 'welcome', mode: 'bot', buyFlow: {} };
+        // --- 1. PERSISTENCE LAYER: FETCH SESSION FROM FIREBASE (Fail-Safe) ---
+        let session;
+        try {
+            // Try fetch (uses In-Memory Cache first)
+            session = await approvalService.getSession(From);
+        } catch (e) {
+            console.error("CRITICAL: Session Read Failed", e);
+            session = null;
+        }
+
+        // FAIL-SAFE DEFAULT: If DB is down or returns null, use Default Session
+        if (!session) {
+            session = { step: 'welcome', mode: 'bot', buyFlow: {} };
+            console.log("⚠️ Using Fail-Safe Default Session");
+        }
         if (!session.buyFlow) session.buyFlow = {};
 
         // DEFER LOGGING (Reply-First Architecture)
