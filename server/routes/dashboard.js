@@ -51,24 +51,34 @@ router.get('/stats', async (req, res) => {
         const rates = await getLiveRates();
         const pending = await approvalService.getPending();
 
-        // Note: Total Inquiries implies total chats, which is hard to count efficiently in Firestore without counters.
-        // We'll use the legacy db.stats for now or 0 if empty.
+        // Defensive checks for rates
+        const safeGold = rates?.gold_gram_inr || 0;
+        const safeSilver = rates?.silver_gram_inr || 0;
 
         res.json({
-            goldRate: rates.gold_gram_inr || 0,
-            silverRate: rates.silver_gram_inr || 0,
+            goldRate: safeGold,
+            silverRate: safeSilver,
             pendingCount: pending.length,
-            qualifiedleads: pending.filter(p => p.status === 'approved').length, // This might be 0 if getPending only returns pending
+            qualifiedleads: pending.filter(p => p.status === 'approved').length,
             totalInquiries: db.stats.totalQueries || 0,
+            actionRequired: pending.length, // Heuristic for now
+            isManual: !!rates?.isManual,
             lastUpdated: new Date()
         });
     } catch (e) {
         console.error("Stats Error:", e);
-        res.status(500).json({ error: "Stats failed" });
+        // Return fail-safe defaults instead of 500 to keep dashboard alive
+        res.json({
+            goldRate: 0,
+            silverRate: 0,
+            pendingCount: 0,
+            totalInquiries: 0,
+            error: "Backend Error"
+        });
     }
 });
 
-// Get Pending
+// Get Pending (Approvals)
 router.get('/pending', async (req, res) => {
     try {
         const list = await approvalService.getPending();
@@ -78,20 +88,24 @@ router.get('/pending', async (req, res) => {
     }
 });
 
+// Get Inbox (Active Conversations) -- NEW FIX
+router.get('/inbox', async (req, res) => {
+    try {
+        const list = await approvalService.getInbox();
+        res.json(list);
+    } catch (e) {
+        console.error("Inbox Fetch Error:", e);
+        res.status(500).json({ error: "Inbox fetch failed" });
+    }
+});
+
+
 // Approve Estimate
 router.post('/approve', async (req, res) => {
     const { id, finalPrice } = req.body;
     try {
         const success = await approvalService.approve(id, finalPrice);
-
         if (!success) return res.status(404).json({ error: "Approval failed" });
-
-        // We don't easily have the customer phone here unless we fetch the doc first.
-        // For efficiency, we assume the frontend might pass it or we fetch it.
-        // But approvalService.approve only updates.
-        // Let's assume for now we just return success and let the owner manually reply if needed,
-        // OR we update approvalService to return the doc.
-
         res.json({ success: true, id });
     } catch (err) {
         console.error("Error:", err);
@@ -101,7 +115,6 @@ router.post('/approve', async (req, res) => {
 
 // Trigger Nudge
 router.post('/nudge', async (req, res) => {
-    // Basic Nudge implementation assuming frontend passes Phone
     const { phone } = req.body;
     if (!phone) return res.status(400).json({ error: "Phone required" });
 
@@ -121,22 +134,45 @@ router.post('/nudge', async (req, res) => {
 
 // Update Settings
 router.post('/settings', async (req, res) => {
-    Object.assign(db.settings, req.body);
-    // Persist to File (Legacy/Backup)
-    db.save();
-    // Persist to Firestore (Live/Render)
-    await approvalService.updateSettings(db.settings);
-    res.json({ success: true, settings: db.settings });
+    try {
+        Object.assign(db.settings, req.body);
+        db.save();
+        await approvalService.updateStoreSettings(db.settings);
+        res.json({ success: true, settings: db.settings });
+    } catch (e) {
+        res.status(500).json({ error: "Settings update failed" });
+    }
 });
 
 // Get Settings
 router.get('/settings', async (req, res) => {
-    const remote = await approvalService.getSettings();
-    if (remote) {
-        Object.assign(db.settings, remote);
-        db.save();
+    try {
+        const remote = await approvalService.getStoreSettings();
+        if (remote) {
+            Object.assign(db.settings, remote);
+            db.save();
+        }
+        res.json(db.settings || {});
+    } catch (e) {
+        res.json(db.settings || {});
     }
-    res.json(db.settings);
+});
+
+// Pricing Config (Separate Endpoint for clarity)
+router.get('/settings/pricing', async (req, res) => {
+    try {
+        const config = await approvalService.getPricingConfig();
+        res.json(config);
+    } catch (e) { res.json({}); }
+});
+
+router.post('/settings/pricing', async (req, res) => {
+    try {
+        Object.assign(db.settings, req.body); // Sync local
+        db.save();
+        await approvalService.updatePricingConfig(req.body);
+        res.json({ success: true });
+    } catch (e) { res.status(500).json({ error: "Failed" }); }
 });
 
 // Toggle Bot Mode
@@ -147,7 +183,7 @@ router.post('/toggle-bot', (req, res) => {
     } else {
         db.sessions[phone].mode = mode;
     }
-    db.save(); // SAVE
+    db.save();
     res.json({ success: true, mode: db.sessions[phone].mode });
 });
 
