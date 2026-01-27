@@ -101,6 +101,16 @@ const updateCustomerActivity = async (phone, lastText) => {
 };
 
 /**
+ * Get Customer by Phone (Direct ID Lookup - No Index Needed)
+ */
+const getCustomer = async (phone) => {
+    return safeRead(async () => {
+        const doc = await db.collection('customers').doc(phone).get();
+        return doc.exists ? doc.data() : null;
+    }, null);
+};
+
+/**
  * Get Recent Customers (Fail-safe)
  */
 const getRecentCustomers = async () => {
@@ -288,6 +298,7 @@ module.exports = {
     approve,
     logMessage,
     updateCustomerActivity,
+    getCustomer,
     getRecentCustomers,
     getChatHistory,
     getInbox,
