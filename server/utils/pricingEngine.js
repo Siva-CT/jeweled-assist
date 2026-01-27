@@ -1,7 +1,8 @@
-const db = require('../db'); // Local fallback (legacy)
-const approvalService = require('../services/approvalService'); // For Firestore access (if needed) or direct db access
-// actually pricingEngine needs direct firebase access for 'pricing' collection if we want to follow "FIREBASE PRICE STORAGE" strictly
-const firebase = require('../firebase');
+// CRITICAL FIX: Use real Firestore Admin instance
+const db = require('../firebase'); // Was '../db'
+// const approvalService = ... (Circular dependency risk? Keeping if needed but mostly using direct db)
+const approvalService = require('../services/approvalService');
+// const firebase = require('../firebase'); // Now 'db' IS this.
 
 let cachedRates = { gold_gram_inr: 0, silver_gram_inr: 0, platinum_gram_inr: 0, timestamp: 0 };
 const CACHE_DURATION = 1000 * 60; // 1 Minute Cache (User Requirement: Live)
@@ -71,9 +72,8 @@ async function getLiveRates() {
             timestamp: now
         };
 
-        // 4. Persistence Rule: Store in Firestore
         // 4. Persistence Rule: Store in Firestore (Async / Fire-and-Forget)
-        firebase.collection('pricing').add({
+        db.collection('pricing').add({
             timestamp: new Date(),
             source: 'goldapi',
             currency: 'INR',

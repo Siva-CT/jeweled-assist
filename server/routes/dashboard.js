@@ -2,7 +2,8 @@ require('dotenv').config();
 const express = require('express');
 const router = express.Router();
 const twilio = require('twilio');
-const db = require('../db');
+// CRITICAL FIX: Use real Firestore Admin instance
+const db = require('../firebase');
 const { getLiveRates } = require('../utils/pricingEngine');
 const approvalService = require('../services/approvalService');
 
