@@ -2,7 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const router = express.Router();
 const twilio = require('twilio');
-const { getLiveRates } = require('../utils/pricingEngine');
+const { getLiveRates, calculatePrice } = require('../utils/pricingEngine');
 const db = require('../db');
 
 // Safe Twilio Init
@@ -187,7 +187,8 @@ router.post('/', async (req, res) => {
                         session.step = 'ask_karat';
                     } else {
                         const rates = await getLiveRates();
-                        await sendReply(From, `👍 *Buying ${metal}*\nRate: ₹${metal === 'Silver' ? rates.silver_gram_inr : 'N/A'}/g\n\nPlease enter **weight (grams)**.`);
+                        const rate = metal === 'Silver' ? rates.silver_gram_inr : rates.platinum_gram_inr;
+                        await sendReply(From, `👍 *Buying ${metal}*\nRate: ₹${rate || 'Check Store'}/g\n\nPlease enter **weight (grams)**.`);
                         session.step = 'estimate_weight';
                     }
                 } else {
@@ -214,7 +215,8 @@ router.post('/', async (req, res) => {
                 session.step = 'ask_karat';
             } else {
                 const rates = await getLiveRates();
-                await sendReply(From, `👍 *Buying ${metal}*\nRate: ₹${metal === 'Silver' ? rates.silver_gram_inr : 'N/A'}/g\n\nPlease enter **weight (grams)**.`);
+                const rate = metal === 'Silver' ? rates.silver_gram_inr : rates.platinum_gram_inr;
+                await sendReply(From, `👍 *Buying ${metal}*\nRate: ₹${rate || 'Check Store'}/g\n\nPlease enter **weight (grams)**.`);
                 session.step = 'estimate_weight';
             }
         } else if (session.step === 'ask_karat') {
@@ -229,7 +231,10 @@ router.post('/', async (req, res) => {
             if (isNaN(weight)) { await sendReply(From, "Please enter a valid number (e.g. 10)."); return; }
             session.weight = weight;
 
-            const cost = Math.round(session.weight * 7000 * 1.15); // Logic would use getLiveRates normally
+            // Use the centralized Pricing Engine
+            // Default: 15% Making, 3% GST
+            const { finalPrice, rate } = await calculatePrice(session.metalType, session.weight);
+            const cost = finalPrice;
             const threshold = db.settings.approvalThreshold || 20000;
 
             if (cost > threshold) {
@@ -243,11 +248,13 @@ router.post('/', async (req, res) => {
                     metal: session.metalType || 'Gold',
                     timestamp: new Date()
                 });
+                db.save(); // SAVE
                 notifyOwner(`New Estimate (> ₹${threshold}):\n${session.weight}g ${session.metalType}\nApprox: ₹${cost}\n\n*Reply 'Approve <Amount>'*`, { customer: From, reqId: db.pendingApprovals[db.pendingApprovals.length - 1].id });
-                await sendReply(From, `✅ *Request Received for ${session.weight}g ${session.metalType}*\n\nApprox Value: ~₹${cost}\n\nI have sent this to the owner for best price approval.`);
+                await sendReply(From, `✅ *Request Received for ${session.weight}g ${session.metalType}*\n\nApprox Value: ~₹${cost}\n_(Includes 3% GST & Min Making Charges)_\n\n⚠️ *Note: Making charges & wastage vary from 5.5% to 35% based on design selection.*\n\nI have sent this to the owner for best price approval.`);
             } else {
                 db.pendingApprovals.push({ id: Date.now().toString(), customer: From, type: 'estimate', weight: session.weight, estimatedCost: cost, status: 'approved', finalPrice: cost, metal: session.metalType, timestamp: new Date() });
-                await sendReply(From, `💰 *Estimate*\n\nApprox cost: *₹${cost}*.\n\nVisit our store to purchase!`);
+                db.save(); // SAVE
+                await sendReply(From, `💰 *Estimate*\n\nApprox cost: *₹${cost}*\n_(Includes 3% GST & Min Making Charges)_\n\n⚠️ *Note: Making charges & wastage vary from 5.5% to 35% based on design selection.*\n\nVisit our store to purchase!`);
             }
             session.step = 'menu';
         } else if (session.step === 'exchange_category') {

@@ -7,13 +7,17 @@ import { API_URL } from './config';
 import { Users, AlertCircle } from 'lucide-react';
 
 function App() {
-    const [activePage, setActivePage] = useState('dashboard'); // 'dashboard', 'inbox', 'settings', 'customers'
+    const [activePage, setActivePage] = useState(() => localStorage.getItem('app_activePage') || 'dashboard'); // 'dashboard', 'inbox', 'settings', 'customers'
 
     // Shared Data State
     const [stats, setStats] = useState({});
     const [pending, setPending] = useState([]);
+    const [messages, setMessages] = useState([]);
     const [selectedId, setSelectedId] = useState(null);
-    const [activeTab, setActiveTab] = useState('chat'); // For Inbox Side Panel
+    const [activeTab, setActiveTab] = useState(() => localStorage.getItem('app_activeTab') || 'chat'); // For Inbox Side Panel
+
+    useEffect(() => { localStorage.setItem('app_activePage', activePage); }, [activePage]);
+    useEffect(() => { localStorage.setItem('app_activeTab', activeTab); }, [activeTab]);
 
     // Polling Data
     useEffect(() => {
@@ -70,8 +74,8 @@ function App() {
                                 key={item.id}
                                 onClick={() => { setSelectedId(item.id); }}
                                 className={`p-3 rounded-lg cursor-pointer transition-all border ${selectedId === item.id
-                                        ? 'bg-[var(--gold-glow)] border-[var(--gold-primary)]'
-                                        : 'bg-transparent border-transparent hover:bg-white/5'
+                                    ? 'bg-[var(--gold-glow)] border-[var(--gold-primary)]'
+                                    : 'bg-transparent border-transparent hover:bg-white/5'
                                     }`}
                             >
                                 <div className="flex justify-between items-start mb-1">

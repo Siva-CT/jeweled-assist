@@ -54,12 +54,31 @@ function getLiveRates() {
     });
 }
 
-async function calculatePrice(weight, makingCharges = 0.15, gst = 0.03) {
+async function calculatePrice(metal, weight, makingCharges = 0.15, gst = 0.03) {
     const rates = await getLiveRates();
-    const basePrice = rates.gold_gram_inr * weight;
+    let rate = 0;
+
+    // Normalize rate based on metal
+    if (metal.toLowerCase().includes('gold')) {
+        rate = rates.gold_gram_inr; // Default 22k
+    } else if (metal.toLowerCase().includes('silver')) {
+        rate = rates.silver_gram_inr;
+    } else if (metal.toLowerCase().includes('platinum')) {
+        rate = rates.platinum_gram_inr || 3500; // Fallback
+    }
+
+    if (!rate || isNaN(rate)) rate = 7000; // Safety Fallback
+
+    const basePrice = rate * weight;
     const withMaking = basePrice * (1 + makingCharges);
     const finalPrice = withMaking * (1 + gst);
-    return { rates, finalPrice: Math.round(finalPrice) };
+
+    return {
+        rate,
+        makingChargesPct: makingCharges * 100,
+        gstPct: gst * 100,
+        finalPrice: Math.round(finalPrice)
+    };
 }
 
 module.exports = { getLiveRates, calculatePrice };
