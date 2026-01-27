@@ -223,119 +223,126 @@ router.post('/', async (req, res) => {
         }
 
         try {
+            // GLOBAL RESET / START
             if (['hi', 'hello', 'start', 'menu', 'reset'].includes(cleanInput)) {
                 session.step = 'menu';
-                // Greeting Image
-                const GREETING_IMG = 'https://drive.google.com/uc?id=1XlsK-4OS5qrs87W9bRNwTXxxcilGgc3q';
-                await sendReply(From, `💎 *Welcome to JeweledAssist!* \n\nHow can I help you today?\n\n1️⃣ *Buy Jewelry* (Gold/Silver/Platinum)\n2️⃣ *Exchange Old Jewel*\n3️⃣ *Talk to Sales Assistant*\n4️⃣ *Store Location*\n5️⃣ *View Catalog*`, GREETING_IMG);
+                await sendReply(From, `💎 *Welcome to JeweledAssist*\n_Your personal jewellery concierge_\n\nHow can I help you today?\n\nPlease choose an option 👇\n\n1️⃣ 🛍️ *Buy Jewellery*\n2️⃣ ♻️ *Exchange Old Gold*\n3️⃣ 💬 *Get Expert Advice*\n4️⃣ 📍 *Store Location*`);
                 return;
             }
 
+            // --- STATE MACHINE ---
+
+            /* 1. MAIN MENU */
             if (session.step === 'menu') {
-                if (cleanInput.includes('1') || cleanInput.includes('buy') || detectMetal(cleanInput)) {
-                    const metal = detectMetal(cleanInput);
-                    if (metal) {
-                        session.metalType = metal;
-                        if (metal === 'Gold') {
-                            await sendReply(From, "Select Purity:\n1️⃣ *22K (916)*\n2️⃣ *24K (999)*\n3️⃣ *18K*");
-                            session.step = 'ask_karat';
-                        } else {
-                            const rates = await getLiveRates();
-                            const rate = metal === 'Silver' ? rates.silver_gram_inr : rates.platinum_gram_inr;
-                            await sendReply(From, `👍 *Buying ${metal}*\nRate: ₹${rate || 'Check Store'}/g\n\nPlease enter **weight (grams)**.`);
-                            session.step = 'estimate_weight';
-                        }
-                    } else {
-                        await sendReply(From, "What would you like to buy?\n\nType *Gold*, *Silver*, or *Platinum*.");
-                        session.step = 'buy_category';
-                    }
-                } else if (cleanInput.includes('exchange')) {
-                    await sendReply(From, "What to exchange?\n\nType *Gold*, *Silver*, or *Platinum*.");
-                    session.step = 'exchange_category';
-                } else if (cleanInput.includes('sales')) {
+                if (cleanInput.includes('1') || cleanInput.includes('buy')) {
+                    // BUY FLOW
+                    session.step = 'buy_category';
+                    await sendReply(From, `🛍️ *Buy Jewellery*\n\nGreat choice ✨\nWhat are you looking for today?\n\n1️⃣ Bridal Jewellery 💍\n2️⃣ Daily Wear 📿\n3️⃣ Investment / Coins / Bars 🪙`);
+                }
+                else if (cleanInput.includes('2') || cleanInput.includes('exchange')) {
+                    // EXCHANGE FLOW
+                    session.step = 'exchange_sub';
+                    await sendReply(From, `♻️ *Exchange Old Gold*\n\nWe offer transparent exchange at live market rates 🔒\n\nPlease choose:\n\n1️⃣ Check today’s gold rate\n2️⃣ Book an exchange visit`);
+                }
+                else if (cleanInput.includes('3') || cleanInput.includes('advice')) {
+                    // ADVICE FLOW
+                    session.step = 'advice_sub';
+                    await sendReply(From, `💬 *Get Expert Advice*\n\nHappy to help 😊\nWhat would you like to know?\n\n1️⃣ Gold & Silver prices\n2️⃣ Making charges & purity\n3️⃣ Bridal buying guidance`);
+                }
+                else if (cleanInput.includes('4') || cleanInput.includes('location')) {
+                    // LOCATION FLOW
+                    session.step = 'location_ask_city';
+                    await sendReply(From, `📍 *Store Location*\n\nTo help you better, which city are you coming from?`);
+                }
+                else {
+                    await sendReply(From, "Please select an option (1-4). Type 'Menu' to restart.");
+                }
+            }
+
+            /* 2. BUY SUB-FLOW */
+            else if (session.step === 'buy_category') {
+                let intent = '';
+                if (cleanInput.includes('1') || cleanInput.includes('bridal')) intent = 'Bridal Jewellery';
+                else if (cleanInput.includes('2') || cleanInput.includes('daily')) intent = 'Daily Wear';
+                else if (cleanInput.includes('3') || cleanInput.includes('investment')) intent = 'Investment';
+                else {
+                    await sendReply(From, "Please select 1, 2, or 3."); return;
+                }
+
+                await sendReply(From, `You selected *${intent}* ✨`);
+
+                // High Value Tagging
+                if (intent === 'Bridal Jewellery' || intent === 'Investment') {
+                    await approvalService.create({ customer: From, type: 'high_intent_lead', subtype: intent, status: 'pending_action', weight: 'N/A', estimatedCost: 'High Value' });
+                    notifyOwner(`🔥 High Intent Lead: ${intent}`, { customer: From });
+                }
+
+                await sendReply(From, `Would you like me to connect you with our in-store jewellery expert for personalized designs?`, null);
+                await sendReply(From, `Type *'Yes'* to chat with an expert, or *'Menu'* to go back.`);
+                session.step = 'buy_handoff';
+            }
+            else if (session.step === 'buy_handoff') {
+                if (cleanInput.includes('yes')) {
                     session.mode = 'agent';
-                    await sendReply(From, "👨‍💼 *Our sales expert will message you shortly.*");
-                    notifyOwner(`Customer ${From} wants to chat!`, { customer: From });
-                    await approvalService.create({ customer: From, type: 'support_request', status: 'pending_action', weight: 'N/A', estimatedCost: 'N/A' });
-                } else if (cleanInput.includes('location')) {
-                    await sendReply(From, `📍 *Store Location*\n\n${db.settings.storeLocation}\n\n${db.settings.mapLink}\n\n🔄 *Type 'Menu' to start a new conversation*`);
-                } else if (cleanInput.includes('catalog') || cleanInput.includes('5')) {
-                    await sendReply(From, "📂 *Jewelry Catalog*\n\nSelect a category:\n\nA. *Gold Rings* 💍\nB. *Gold Chains* ⛓️");
-                    session.step = 'catalog_category';
-                }
-            } else if (session.step === 'catalog_category') {
-                if (cleanInput.includes('ring') || cleanInput === 'a') {
-                    // Send Rings
-                    await sendReply(From, "💍 *Gold Rings Collection*");
-                    await sendReply(From, "Elegant Design 1", 'https://drive.google.com/uc?id=1LNuPRyXGWsuZ-_s8Rwo2dZe3WwHL9DYd');
-                    await sendReply(From, "Classic Design 2", 'https://drive.google.com/uc?id=1rVzjVvGx9LSqdQm4h2ZEZSad5tFP6sqQ');
-                    await sendReply(From, "\n🔄 *Type 'Menu' to start a new conversation*");
-                    session.step = 'menu';
-                } else if (cleanInput.includes('chain') || cleanInput === 'b') {
-                    // Send Chains
-                    await sendReply(From, "⛓️ *Gold Chains Collection*");
-                    await sendReply(From, "Traditional Chain 1", 'https://drive.google.com/uc?id=1fBu2F7SbcpHHkBsRUJB9x03EewR2h3SX');
-                    await sendReply(From, "Modern Chain 2", 'https://drive.google.com/uc?id=1_-mjHEihvSgQbfbztU-0_yvnDBqN64dO');
-                    await sendReply(From, "\n🔄 *Type 'Menu' to start a new conversation*");
-                    session.step = 'menu';
+                    await sendReply(From, `👨‍💼 *Request Sent*\n\nOur expert has been notified and will message you shortly to assist with your *${db.sessions[From].intent || 'request'}*.`);
+                    notifyOwner(`Customer confirmed expert chat request.`, { customer: From });
                 } else {
-                    await sendReply(From, "Please select *A (Rings)* or *B (Chains)*.");
+                    session.step = 'menu';
+                    await sendReply(From, "No problem! You can browse our catalog or check rates anytime.\n\n🔄 *Type 'Menu' to start a new conversation*");
                 }
-            } else if (session.step === 'buy_category') {
-                const metal = detectMetal(cleanInput);
-                if (!metal) { await sendReply(From, "Please type *Gold*, *Silver*, or *Platinum*."); return; }
-                session.metalType = metal;
-                if (metal === 'Gold') {
-                    await sendReply(From, "Select Purity:\n1️⃣ *22K (916)*\n2️⃣ *24K (999)*\n3️⃣ *18K*");
-                    session.step = 'ask_karat';
-                } else {
+            }
+
+            /* 3. EXCHANGE SUB-FLOW */
+            else if (session.step === 'exchange_sub') {
+                if (cleanInput.includes('1') || cleanInput.includes('rate')) {
+                    // Check Rate
                     const rates = await getLiveRates();
-                    const rate = metal === 'Silver' ? rates.silver_gram_inr : rates.platinum_gram_inr;
-                    await sendReply(From, `👍 *Buying ${metal}*\nRate: ₹${rate || 'Check Store'}/g\n\nPlease enter **weight (grams)**.`);
-                    session.step = 'estimate_weight';
-                }
-            } else if (session.step === 'ask_karat') {
-                if (cleanInput.includes('22')) session.karat = '22K';
-                else if (cleanInput.includes('24')) session.karat = '24K';
-                else session.karat = '22K';
-                const rates = await getLiveRates();
-                await sendReply(From, `👍 *Buying Gold ${session.karat}*\nRate: ₹${rates.gold_gram_inr}/g\n\nPlease enter **weight (grams)**.`);
-                session.step = 'estimate_weight';
-            } else if (session.step === 'estimate_weight') {
-                const weight = parseFloat(input);
-                if (isNaN(weight)) { await sendReply(From, "Please enter a valid number (e.g. 10)."); return; }
-                session.weight = weight;
-
-                // Use the centralized Pricing Engine
-                // Default: 15% Making, 3% GST
-                const { finalPrice, rate } = await calculatePrice(session.metalType, session.weight);
-                const cost = finalPrice;
-                const threshold = db.settings.approvalThreshold || 20000;
-
-                if (cost > threshold) {
-                    const newReq = await approvalService.create({
-                        customer: From,
-                        type: 'estimate',
-                        weight: session.weight,
-                        estimatedCost: cost,
-                        status: 'pending_approval',
-                        metal: session.metalType || 'Gold',
-                    });
-                    db.save(); // SAVE
-                    notifyOwner(`New Estimate (> ₹${threshold}):\n${session.weight}g ${session.metalType}\nApprox: ₹${cost}\n\n*Reply 'Approve <Amount>'*`, { customer: From, reqId: newReq.id });
-                    await sendReply(From, `✅ *Request Received for ${session.weight}g ${session.metalType}*\n\nApprox Value: ~₹${cost}\n_(Includes 3% GST & Min Making Charges)_\n\n⚠️ *Note: Making charges & wastage vary from 5.5% to 35% based on design selection.*\n\nI have sent this to the owner for best price approval.\n\n🔄 *Type 'Menu' to start a new conversation*`);
+                    await sendReply(From, `📉 *Today's Exchange Rates*\n\nGold (22K): ₹${rates.gold_gram_inr}/g\nSilver: ₹${rates.silver_gram_inr}/g\n\n_Rates are subject to purity verification._\n\n✔ Live market pricing\n✔ Certified purity`);
+                    await sendReply(From, "Would you like to book a visit? (Type Yes/No)");
+                    session.step = 'exchange_book';
+                } else if (cleanInput.includes('2') || cleanInput.includes('book')) {
+                    // Book Visit
+                    session.step = 'exchange_book_confirm';
+                    await sendReply(From, "📅 *Book Exchange Visit*\n\nPlease type your preferred *Date & Time* (e.g., Tomorrow 11 AM).");
                 } else {
-                    await approvalService.create({ customer: From, type: 'estimate', weight: session.weight, estimatedCost: cost, status: 'approved', finalPrice: cost, metal: session.metalType });
-                    db.save(); // SAVE
-                    await sendReply(From, `💰 *Estimate*\n\nApprox cost: *₹${cost}*\n_(Includes 3% GST & Min Making Charges)_\n\n⚠️ *Note: Making charges & wastage vary from 5.5% to 35% based on design selection.*\n\nVisit our store to purchase!\n\n🔄 *Type 'Menu' to start a new conversation*`);
+                    await sendReply(From, "Please select 1 or 2.");
                 }
-                session.step = 'menu';
-            } else if (session.step === 'exchange_category') {
-                const metal = detectMetal(cleanInput);
-                if (metal) {
-                    await sendReply(From, `*${metal} Exchange Process*:\n\n1. Purity Verification\n2. Net Weight Check\n3. Today's Rate Valuation\n\nVisit store for details.\n\n🔄 *Type 'Menu' to start a new conversation*`);
+            }
+            else if (session.step === 'exchange_book') {
+                if (cleanInput.includes('yes')) {
+                    session.step = 'exchange_book_confirm';
+                    await sendReply(From, "📅 *Book Exchange Visit*\n\nPlease type your preferred *Date & Time* (e.g., Tomorrow 11 AM).");
+                } else {
                     session.step = 'menu';
+                    await sendReply(From, "Understood. We are open Mon-Sat, 10 AM - 9 PM.\n\n🔄 *Type 'Menu' to start a new conversation*");
                 }
+            }
+            else if (session.step === 'exchange_book_confirm') {
+                await sendReply(From, `✅ *Visit Confirmed!*\n\nWe have scheduled your exchange visit for: *${input}*.\n\n📍 Location: ${db.settings.storeLocation}\n\nSee you soon!\n\n🔄 *Type 'Menu' to restart*`);
+                notifyOwner(`📅 New Appointment: Exchange Visit at ${input}`, { customer: From });
+                session.step = 'menu';
+            }
+
+            /* 4. ADVICE SUB-FLOW */
+            else if (session.step === 'advice_sub') {
+                if (cleanInput.includes('1') || cleanInput.includes('price')) {
+                    const rates = await getLiveRates();
+                    await sendReply(From, `📊 *Live Market Prices*\n\nGold (22K): ₹${rates.gold_gram_inr}/g\nSilver: ₹${rates.silver_gram_inr}/g\nUSD/INR: ₹${rates.usd_inr}\n\n✔ Live API Data`);
+                } else if (cleanInput.includes('2') || cleanInput.includes('making')) {
+                    await sendReply(From, `🛡️ *Transparancy Promise*\n\n• Making Charges: Start from 8%\n• Wastage: As per market standards\n• Purity: BIS Hallmarked (916)\n\nWe guarantee the best value for your old gold exchange.`);
+                } else if (cleanInput.includes('3') || cleanInput.includes('bridal')) {
+                    await sendReply(From, `👰 *Bridal Guidance*\n\nOur experts recommend starting planning 3-6 months ahead.\n\nWe specialize in:\n- Custom Temple Jewellery\n- Antique Finishes\n- Diamond Sets\n\nWould you like a consultation? (Type 'Yes')`);
+                    session.step = 'buy_handoff'; // Reuse handoff
+                    return;
+                }
+                await sendReply(From, "\n🔄 *Type 'Menu' to start a new conversation*");
+                session.step = 'menu';
+            }
+
+            /* 5. LOCATION SUB-FLOW */
+            else if (session.step === 'location_ask_city') {
+                await sendReply(From, `📍 *Jeweled Showroom*\n\n123 Gold Street, Market City, Chennai\n\n🗺️ Map: ${db.settings.mapLink}\n\n🕒 Timings: 10:00 AM - 9:00 PM (Mon-Sat)\n🅿️ Valet Parking Available\n\nWe look forward to seeing you!\n\n🔄 *Type 'Menu' to restart*`);
+                session.step = 'menu';
             }
 
         } catch (e) { console.error(e); }
