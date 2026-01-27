@@ -122,5 +122,70 @@ router.get('/inbox', async (req, res) => {
 router.get('/all-customers', (req, res) => res.json([]));
 
 
+// --- RESTORED ROUTES ---
+
+// Update Settings
+router.post('/settings', async (req, res) => {
+    try {
+        await approvalService.updateStoreSettings(req.body);
+        res.json({ success: true });
+    } catch (e) {
+        res.status(500).json({ error: "Settings update failed" });
+    }
+});
+
+// Get Settings (Fixed: Auto-Create Logic)
+router.get('/settings', async (req, res) => {
+    try {
+        const settings = await approvalService.getStoreSettings();
+        res.json(settings || {});
+    } catch (e) {
+        res.json({});
+    }
+});
+
+// Toggle Bot Mode (With User Notification)
+router.post('/toggle-bot', async (req, res) => {
+    const { phone, mode } = req.body;
+    try {
+        // 1. Update Session Mode (RAM/DB)
+        approvalService.updateSession(phone, { mode });
+
+        // 2. Update Conversation Status (Inbox Visibility)
+        const isBot = mode === 'bot';
+        await approvalService.syncConversation(phone, {
+            bot_enabled: isBot,
+            requires_owner_action: !isBot, // If Bot, owner action done. If Agent, owner action needed? No, owner "taking over" usually implies active manual.
+            // Actually: "Toggle to Bot" -> Owner finished. "Toggle to Human" -> Owner actively chatting.
+            // When Toggling TO BOT: requires_owner_action = false (Remove from Inbox Needs Action)
+            // When Toggling TO AGENT: requires_owner_action = false (It's active, but maybe "In Progress"? Dashboard query filters by requires_owner_action=true. 
+            // If we assume "Needs Action" means "Unanswered Handoff", then flipping to Agent implies we ARE answerng.
+            // So requires_owner_action = false in BOTH toggle cases is safest to clear the "Alert".
+            requires_owner_action: false
+        });
+
+        // 3. Send Handoff Message (If switching TO Bot)
+        if (isBot) {
+            const menuText = `💎 *System Update*\n\nAutomated assistant is back online.\n\nType *0* for Main Menu.`;
+            await client.messages.create({
+                from: `whatsapp:${process.env.TWILIO_PHONE_NUMBER}`,
+                to: phone,
+                body: menuText
+            });
+            await approvalService.logMessage({ from: 'bot', to: phone, text: menuText });
+        }
+
+        res.json({ success: true, mode });
+    } catch (e) {
+        console.error("Toggle Bot Error:", e);
+        res.status(500).json({ error: "Failed to toggle bot" });
+    }
+});
+
+// Get Bot Status
+router.get('/bot-status/:phone', async (req, res) => {
+    const session = await approvalService.getSession(req.params.phone);
+    res.json({ mode: session ? session.mode : 'bot' });
+});
 
 module.exports = router;
