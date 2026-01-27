@@ -110,7 +110,7 @@ router.post('/', async (req, res) => {
             return;
 
         } else if (cleanInput === 'help') {
-            await sendReply(From, "👨‍💻 *Owner Commands*\n\n- *Approve [Amount]*\n- *Reply [Msg]*\n- *Set Threshold [Val]*\n- *Set Gold [Val]*\n- *Status*");
+            await sendReply(From, "👨‍💻 *Owner Commands*\n\n- *Approve [Amount]*\n- *Reply [Msg]*\n- *Nudge* (Remind Customer)\n- *Mode [Agent/Bot]*\n- *Set Threshold [Val]*\n- *Set Gold [Val]*\n- *Status*");
             return;
 
         } else if (cleanInput.startsWith('set threshold')) {
@@ -120,6 +120,29 @@ router.post('/', async (req, res) => {
                 db.save(); // SAVE
                 await sendReply(From, `✅ Approval Threshold set to ₹${val}`);
             }
+            return;
+
+        } else if (cleanInput.startsWith('nudge')) {
+            const target = lastContext.customer;
+            if (!target) { await sendReply(From, "❌ No active customer context."); return; }
+
+            await sendReply(target, `👋 *Just a gentle reminder!*\n\nWe are holding your special price estimate at Jeweled Showroom. When can we expect you?`);
+            // Log as system message so it appears in history
+            db.messages.push({ from: 'owner', to: target, text: '[ACTION: NUDGE SENT]', timestamp: new Date() });
+            db.save();
+            await sendReply(From, `✅ Nudge sent to ${target}`);
+            return;
+
+        } else if (cleanInput.startsWith('mode')) {
+            const target = lastContext.customer;
+            if (!target) { await sendReply(From, "❌ No active customer context."); return; }
+
+            const newMode = cleanInput.includes('agent') || cleanInput.includes('human') ? 'agent' : 'bot';
+            if (!db.sessions[target]) db.sessions[target] = { step: 'menu', mode: newMode };
+            else db.sessions[target].mode = newMode;
+            db.save();
+
+            await sendReply(From, `✅ Switched ${target} to *${newMode.toUpperCase()}* mode.`);
             return;
 
         } else if (cleanInput.startsWith('set gold')) {
