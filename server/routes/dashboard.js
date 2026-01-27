@@ -89,10 +89,10 @@ router.get('/pending', (req, res) => res.json([]));
 // Get Inbox (Restored - Active Only)
 router.get('/inbox', async (req, res) => {
     try {
-        // STRICT: Expert Advice Only
+        // STRICT: Expert Advice Only (Index-Free Query)
         const snapshot = await db.collection('conversations')
             .where('requires_owner_action', '==', true)
-            .orderBy('last_message_at', 'desc')
+            // .orderBy('last_message_at', 'desc') // REMOVED to prevent "Missing Index" error
             .limit(50)
             .get();
 
@@ -108,23 +108,13 @@ router.get('/inbox', async (req, res) => {
             };
         });
 
+        // Sort in Memory (Safe & Fast for <50 items)
+        list.sort((a, b) => b.lastContact - a.lastContact);
+
         res.json(list);
     } catch (e) {
         console.error("Inbox Fetch Error:", e);
-        // Fallback for missing index
-        try {
-            const snapshot2 = await db.collection('conversations')
-                .where('requires_owner_action', '==', true)
-                .limit(20)
-                .get();
-            res.json(snapshot2.docs.map(d => ({
-                phone: d.id,
-                lastIntent: d.data().intent,
-                lastContact: new Date()
-            })));
-        } catch (e2) {
-            res.json([]);
-        }
+        res.json([]);
     }
 });
 
