@@ -32,43 +32,39 @@ const detectMetal = (text) => {
     return null;
 };
 
-async function sendReply(to, text, mediaUrl = null) {
-    db.messages.push({ from: 'bot', to, text, timestamp: new Date() });
-    const opts = {
-        from: `whatsapp:${process.env.TWILIO_PHONE_NUMBER}`,
-        to: to,
-        body: text
-    };
-    if (mediaUrl) opts.mediaUrl = [mediaUrl];
-    await client.messages.create(opts).catch(e => console.error(e));
-    // Helper to Send & Log
-    async function sendReply(to, body) {
-        try {
-            await client.messages.create({
-                from: `whatsapp:${process.env.TWILIO_PHONE_NUMBER}`,
-                to: to,
-                body: body
-            });
-            // Log to Firebase
-            await approvalService.logMessage({ from: 'bot', to: to, text: body });
-        } catch (e) {
-            console.error("Twilio Error:", e);
-        }
-    }
-
-    async function notifyOwner(message, context = {}) {
-        if (context.customer) {
-            db.ownerContext = { customer: context.customer, reqId: context.reqId };
-        }
-        const ownerNum = db.settings.ownerNumber.startsWith('whatsapp:') ? db.settings.ownerNumber : `whatsapp:${db.settings.ownerNumber}`;
-        await client.messages.create({
+// Helper to Send & Log
+async function sendReply(to, body, mediaUrl = null) {
+    try {
+        const opts = {
             from: `whatsapp:${process.env.TWILIO_PHONE_NUMBER}`,
-            to: ownerNum,
-            body: `🔔 *Owner Alert*\n\n${message}`
-        }).catch(e => console.error(e));
-    }
+            to: to,
+            body: body
+        };
+        if (mediaUrl) opts.mediaUrl = [mediaUrl];
 
-    router.post('/', async (req, res) => {
+        await client.messages.create(opts);
+
+        // Log to Firebase
+        await approvalService.logMessage({ from: 'bot', to: to, text: body });
+    } catch (e) {
+        console.error("Twilio Error:", e);
+    }
+}
+
+async function notifyOwner(message, context = {}) {
+    if (context.customer) {
+        db.ownerContext = { customer: context.customer, reqId: context.reqId };
+    }
+    const ownerNum = db.settings.ownerNumber.startsWith('whatsapp:') ? db.settings.ownerNumber : `whatsapp:${db.settings.ownerNumber}`;
+    await client.messages.create({
+        from: `whatsapp:${process.env.TWILIO_PHONE_NUMBER}`,
+        to: ownerNum,
+        body: `🔔 *Owner Alert*\n\n${message}`
+    }).catch(e => console.error(e));
+}
+
+router.post('/', async (req, res) => {
+    try {
         const { MessageSid, Body, From } = req.body;
 
         // 1. IDEMPOTENCY: Reply 200 OK immediately to stop Twilio retries/loops
@@ -114,8 +110,8 @@ async function sendReply(to, text, mediaUrl = null) {
                     return;
                 }
                 await sendReply(target, msg);
-                db.messages.push({ from: 'owner', to: target, text: msg, timestamp: new Date() });
-                db.save(); // SAVE
+                // Log Owner Reply to Firebase
+                await approvalService.logMessage({ from: 'owner', to: target, text: msg });
                 await sendReply(From, `📤 Sent to ${target}: "${msg}"`);
                 return;
 
@@ -142,8 +138,7 @@ async function sendReply(to, text, mediaUrl = null) {
 
                 await sendReply(target, `👋 *Just a gentle reminder!*\n\nWe are holding your special price estimate at Jeweled Showroom. When can we expect you?`);
                 // Log as system message so it appears in history
-                db.messages.push({ from: 'owner', to: target, text: '[ACTION: NUDGE SENT]', timestamp: new Date() });
-                db.save();
+                await approvalService.logMessage({ from: 'owner', to: target, text: '[ACTION: NUDGE SENT]' });
                 await sendReply(From, `✅ Nudge sent to ${target}`);
                 return;
 
@@ -173,8 +168,7 @@ async function sendReply(to, text, mediaUrl = null) {
             // Forwarding (Relay Logic)
             if (lastContext.customer) {
                 await sendReply(lastContext.customer, input);
-                db.messages.push({ from: 'owner', to: lastContext.customer, text: input, timestamp: new Date() });
-                db.save(); // SAVE
+                await approvalService.logMessage({ from: 'owner', to: lastContext.customer, text: input });
                 return;
             }
             await sendReply(From, "🤖 Owner Mode. Type *Help* for commands.");
@@ -191,8 +185,8 @@ async function sendReply(to, text, mediaUrl = null) {
         }
 
         db.sessions[From] = session;
-        db.messages.push({ from: From, to: 'admin', text: input, timestamp: new Date() });
-        db.save(); // SAVE
+        // Log Incoming Message (Firebase)
+        await approvalService.logMessage({ from: From, to: 'admin', text: input });
 
         // AGENT MODE (Human Takeover)
         if (session.mode === 'agent') {
@@ -247,7 +241,7 @@ async function sendReply(to, text, mediaUrl = null) {
                     session.mode = 'agent';
                     await sendReply(From, "👨‍💼 *Our sales expert will message you shortly.*");
                     notifyOwner(`Customer ${From} wants to chat!`, { customer: From });
-                    db.pendingApprovals.push({ id: Date.now().toString(), customer: From, type: 'support_request', status: 'pending_action', timestamp: new Date(), weight: 'N/A', estimatedCost: 'N/A' });
+                    await approvalService.create({ customer: From, type: 'support_request', status: 'pending_action', weight: 'N/A', estimatedCost: 'N/A' });
                 } else if (cleanInput.includes('4') || cleanInput.includes('location')) {
                     await sendReply(From, `📍 *Store Location*\n\n${db.settings.storeLocation}\n\n${db.settings.mapLink}`);
                 }
@@ -309,6 +303,9 @@ async function sendReply(to, text, mediaUrl = null) {
             }
 
         } catch (e) { console.error(e); }
-    });
+    } catch (routeError) {
+        console.error("Router Error:", routeError);
+    }
+});
 
-    module.exports = router;
+module.exports = router;
