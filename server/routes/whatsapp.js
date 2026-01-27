@@ -75,16 +75,24 @@ router.post('/', async (req, res) => {
     try {
         const { MessageSid, Body, From } = req.body;
 
-        // 1. IDEMPOTENCY: Reply 200 OK immediately to stop Twilio retries/loops
+        // 1. IDEMPOTENCY
         res.type('text/xml').send('<Response></Response>');
 
         if (processedMessages.has(MessageSid)) return;
         processedMessages.add(MessageSid);
 
-        // SYNC SETTINGS (Ensure we have latest Owner Number)
-        const remoteSettings = await approvalService.getSettings();
-        if (remoteSettings) {
-            Object.assign(db.settings, remoteSettings);
+        // 2. CHECK BOT STATUS
+        const botStatus = await approvalService.getBotStatus();
+        if (!botStatus.active && From !== process.env.TWILIO_PHONE_NUMBER) {
+            // Bot Disabled: Log message but DO NOT REPLY
+            await approvalService.logMessage({ from: From, to: 'admin', text: Body });
+            await approvalService.updateInboxMetadata(From, {
+                lastQuery: Body,
+                lastContact: new Date(),
+                actionRequired: true, // Mark for manual attention
+                status: 'manual_handling'
+            });
+            return;
         }
 
         const input = Body?.trim();
@@ -273,8 +281,18 @@ router.post('/', async (req, res) => {
 
                 // High Value Tagging
                 if (intent === 'Bridal Jewellery' || intent === 'Investment') {
+                    // Log Approval Request
                     await approvalService.create({ customer: From, type: 'high_intent_lead', subtype: intent, status: 'pending_action', weight: 'N/A', estimatedCost: 'High Value' });
+                    // Update Inbox Metadata
+                    await approvalService.updateInboxMetadata(From, {
+                        intent: intent,
+                        actionRequired: true,
+                        metal: 'Gold'
+                    });
                     notifyOwner(`🔥 High Intent Lead: ${intent}`, { customer: From });
+                } else {
+                    // Update Inbox Metadata (Regular)
+                    await approvalService.updateInboxMetadata(From, { intent: intent, actionRequired: false });
                 }
 
                 await sendReply(From, `Would you like me to connect you with our in-store jewellery expert for personalized designs?`, null);

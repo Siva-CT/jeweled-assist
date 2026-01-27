@@ -37,10 +37,10 @@ const ExecutiveDashboard = () => {
         : '0.0';
 
     const cards = [
-        { label: 'TOTAL INQUIRIES', value: stats.totalInquiries || 0, sub: '+12% from last week', icon: Users },
-        { label: 'PENDING ACTIONS', value: stats.pendingCount || 0, sub: 'Requires attention', icon: Clock, highlight: stats.pendingCount > 0 },
-        { label: 'SILVER RATE', value: `₹${stats.silverRate}/g`, sub: 'Live Market Rate', icon: TrendingUp },
-        { label: 'CONVERSION RATE', value: `${conversionRate}%`, sub: 'Leads to Sales', icon: Activity },
+        { label: 'TOTAL INQUIRIES', value: stats.totalInquiries || 0, sub: 'Active Conversations', icon: Users },
+        { label: 'ACTION REQUIRED', value: stats.actionRequired || 0, sub: 'High Intent / Manual', icon: Clock, highlight: stats.actionRequired > 0 },
+        { label: 'GOLD RATE (22K)', value: `₹${stats.goldRate}/g`, sub: stats.isManual ? '⚠️ Manual Price' : 'Live Market API', icon: TrendingUp, highlight: stats.isManual },
+        { label: 'SILVER RATE (1g)', value: `₹${stats.silverRate}/g`, sub: stats.isManual ? '⚠️ Manual Price' : 'Live Market API', icon: Activity },
     ];
 
     return (
@@ -52,9 +52,9 @@ const ExecutiveDashboard = () => {
                     <p className="text-gray-500 text-sm">Welcome back, Owner.</p>
                 </div>
                 <div className="bg-[#111] px-4 py-2 rounded-lg border border-white/10 flex items-center gap-3">
-                    <span className="text-xs text-gray-500 uppercase tracking-wider font-bold">Live Gold Rate</span>
-                    <span className="text-xl font-bold text-white font-mono">₹{stats.goldRate}</span>
-                    <span className="text-[10px] text-gray-600">/g (22K)</span>
+                    <span className="text-xs text-gray-500 uppercase tracking-wider font-bold">System Status</span>
+                    <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
+                    <span className="text-sm font-bold text-white font-mono">ONLINE</span>
                 </div>
             </div>
 
@@ -68,11 +68,6 @@ const ExecutiveDashboard = () => {
                         <h3 className="text-3xl font-bold text-white mb-1">{card.value}</h3>
                         <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-2">{card.label}</p>
                         <p className={`text-xs ${card.highlight ? 'text-yellow-500' : 'text-gray-600'}`}>{card.sub}</p>
-
-                        {/* Hover Effect */}
-                        <div className="absolute -right-4 -bottom-4 opacity-0 group-hover:opacity-10 transition-opacity">
-                            <card.icon size={80} />
-                        </div>
                     </div>
                 ))}
             </div>

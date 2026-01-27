@@ -154,31 +154,82 @@ const approvalService = {
             return all.filter(m => m.from === phone || m.to === phone).reverse();
         }
     }
+    // --- INBOX FEATURES ---
+
     /**
-     * Get Settings
+     * Get Inbox (Active Conversations)
      */
-    getSettings: async () => {
+    getInbox: async () => {
         try {
-            const doc = await db.collection('config').doc('main').get();
-            if (!doc.exists) return null;
-            return doc.data();
+            const snapshot = await db.collection('customers')
+                .orderBy('lastContact', 'desc')
+                .limit(50)
+                .get();
+
+            return snapshot.docs.map(doc => ({
+                phone: doc.id,
+                ...doc.data(),
+                lastContact: doc.data().lastContact?.toDate()
+            }));
         } catch (e) {
-            console.error("Firebase Settings Fetch Error:", e);
-            return null;
+            console.error("Firebase Inbox Error:", e);
+            return [];
         }
     },
 
     /**
-     * Update Settings
+     * Update Inbox Metadata (Intent, Action Required)
      */
-    updateSettings: async (newSettings) => {
+    updateInboxMetadata: async (phone, metadata) => {
         try {
-            await db.collection('config').doc('main').set(newSettings, { merge: true });
-            return true;
+            await db.collection('customers').doc(phone).set({
+                ...metadata,
+                updatedAt: new Date()
+            }, { merge: true });
         } catch (e) {
-            console.error("Firebase Settings Update Error:", e);
-            return false;
+            console.error("Firebase Inbox Update Error:", e);
         }
+    },
+
+    // --- CONFIGURATION FEATURES ---
+
+    /**
+     * Get Store Settings
+     */
+    getStoreSettings: async () => {
+        try {
+            const doc = await db.collection('config').doc('store_settings').get();
+            return doc.exists ? doc.data() : null;
+        } catch (e) { return null; }
+    },
+    updateStoreSettings: async (data) => {
+        await db.collection('config').doc('store_settings').set(data, { merge: true });
+    },
+
+    /**
+     * Get Pricing Config
+     */
+    getPricingConfig: async () => {
+        try {
+            const doc = await db.collection('config').doc('pricing').get();
+            return doc.exists ? doc.data() : { manualMode: false, manualRates: {} };
+        } catch (e) { return { manualMode: false, manualRates: {} }; }
+    },
+    updatePricingConfig: async (data) => {
+        await db.collection('config').doc('pricing').set(data, { merge: true });
+    },
+
+    /**
+     * Get Bot Status
+     */
+    getBotStatus: async () => {
+        try {
+            const doc = await db.collection('config').doc('bot_status').get();
+            return doc.exists ? doc.data() : { active: true };
+        } catch (e) { return { active: true }; }
+    },
+    updateBotStatus: async (active) => {
+        await db.collection('config').doc('bot_status').set({ active }, { merge: true });
     }
 };
 

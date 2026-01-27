@@ -25,16 +25,15 @@ function App() {
             try {
                 const statsRes = await fetch(`${API_URL}/api/dashboard/stats`);
                 setStats(await statsRes.json());
-
-                // Fetch Pending/Active Chats
-                const pendingRes = await fetch(`${API_URL}/api/dashboard/pending`);
-                setPending(await pendingRes.json());
+                // Fetch Inbox
+                const inboxRes = await fetch(`${API_URL}/api/dashboard/inbox`);
+                setPending(await inboxRes.json()); // reusing 'pending' var for inbox items
             } catch (e) {
                 console.error("API Error", e);
             }
         };
         fetchData();
-        const interval = setInterval(fetchData, 5000);
+        const interval = setInterval(fetchData, 3000); // Faster polling for Chat
         return () => clearInterval(interval);
     }, []);
 
@@ -44,12 +43,13 @@ function App() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ id, finalPrice })
         });
-        setPending(prev => prev.filter(p => p.id !== id));
-        setSelectedId(null);
+        // Optimistic Update
     };
 
-    const selectedItem = pending.find(p => p.id === selectedId) || null;
-    const itemData = (item) => ({ intent: item?.type || 'Unknown' });
+    const selectedItem = pending.find(p => p.phone === selectedId) || null;
+    const itemData = (item) => ({ intent: item?.intent || 'Unknown' });
+
+    // --- RENDER HELPERS ---
 
     // --- RENDER HELPERS ---
 
@@ -60,35 +60,48 @@ function App() {
             <div className="w-[20%] min-w-[250px] flex flex-col border-r border-white/5 bg-[var(--bg-panel)]">
                 {/* Header */}
                 <div className="p-4 border-b border-white/5 h-[65px] flex items-center justify-between">
-                    <h2 className="font-bold text-lg">Inbox</h2>
-                    <span className="text-xs bg-white/5 px-2 py-1 rounded text-gray-400">{pending.length} Active</span>
+                    <h2 className="font-bold text-lg text-white">Inbox</h2>
+                    <span className="text-xs bg-white/5 px-2 py-1 rounded text-gray-400">{pending.length} Chats</span>
                 </div>
 
                 {/* List */}
                 <div className="flex-1 overflow-y-auto p-2 space-y-2 custom-scrollbar">
                     {pending.length === 0 ? (
-                        <div className="text-center py-10 text-gray-600 text-sm">No active queries</div>
+                        <div className="text-center py-10 text-gray-600 text-sm">No active conversations</div>
                     ) : (
                         pending.map(item => (
                             <div
-                                key={item.id}
-                                onClick={() => { setSelectedId(item.id); }}
-                                className={`p-3 rounded-lg cursor-pointer transition-all border ${selectedId === item.id
+                                key={item.phone}
+                                onClick={() => { setSelectedId(item.phone); }}
+                                className={`p-3 rounded-lg cursor-pointer transition-all border group relative ${selectedId === item.phone
                                     ? 'bg-[var(--gold-glow)] border-[var(--gold-primary)]'
                                     : 'bg-transparent border-transparent hover:bg-white/5'
                                     }`}
                             >
                                 <div className="flex justify-between items-start mb-1">
-                                    <span className={`font-medium text-sm ${selectedId === item.id ? 'text-[var(--gold-primary)]' : 'text-gray-200'}`}>
-                                        {item.customer}
+                                    <span className={`font-medium text-sm truncate w-[60%] ${selectedId === item.phone ? 'text-[var(--gold-primary)]' : 'text-gray-200'}`}>
+                                        {item.phone}
                                     </span>
-                                    {item.status === 'pending_approval' && (
-                                        <div className="w-2 h-2 rounded-full bg-[var(--status-pending)] animate-pulse" title="Needs Approval" />
+                                    {item.actionRequired && (
+                                        <span className="text-[10px] font-bold bg-red-500/20 text-red-500 px-2 py-0.5 rounded border border-red-500/20 animate-pulse">ACTION</span>
                                     )}
                                 </div>
-                                <p className="text-xs text-gray-500 truncate">
-                                    {item.type === 'estimate' ? `Estimate: ${item.weight}g` : 'General Inquiry'}...
+                                <p className="text-xs text-gray-500 truncate mb-2">
+                                    {item.lastQuery || 'New Conversation'}
                                 </p>
+                                {/* Tags */}
+                                <div className="flex gap-1 flex-wrap">
+                                    {item.intent && (
+                                        <span className="text-[9px] bg-blue-500/10 text-blue-400 px-1.5 py-0.5 rounded border border-blue-500/10 uppercase tracking-wide">
+                                            {item.intent}
+                                        </span>
+                                    )}
+                                    {item.metal && (
+                                        <span className="text-[9px] bg-yellow-500/10 text-yellow-500 px-1.5 py-0.5 rounded border border-yellow-500/10 uppercase tracking-wide">
+                                            {item.metal}
+                                        </span>
+                                    )}
+                                </div>
                             </div>
                         ))
                     )}
@@ -97,40 +110,68 @@ function App() {
 
             {/* MIDDLE PANEL (Chat) */}
             <div className="w-[50%] flex flex-col border-r border-white/5 bg-[var(--bg-deep)] relative">
-                <ChatArea selectedItem={selectedItem} onApprove={handleApprove} />
+                {/* Fix: Pass customer as phone for ChatArea */}
+                <ChatArea selectedItem={selectedItem ? { ...selectedItem, customer: selectedItem.phone } : null} onApprove={handleApprove} />
             </div>
 
             {/* RIGHT PANEL (Context) */}
             <div className="w-[30%] min-w-[300px] flex flex-col bg-[var(--bg-panel)]">
                 <div className="p-4 border-b border-white/5 h-[65px] flex items-center">
-                    <h2 className="font-bold text-lg">Context & Actions</h2>
+                    <h2 className="font-bold text-lg text-white">Context & Actions</h2>
                 </div>
 
                 <div className="flex-1 overflow-y-auto p-6">
                     {selectedItem ? (
                         <div className="space-y-6">
-                            <div className="bg-white/5 p-5 rounded-xl border border-white/5 text-center">
-                                <div className="w-16 h-16 rounded-full bg-gradient-to-tr from-gray-700 to-gray-600 flex items-center justify-center text-2xl mb-4 mx-auto">
+                            {/* Profile Card */}
+                            <div className="bg-white/5 p-5 rounded-xl border border-white/5 text-center relative overflow-hidden">
+                                {selectedItem.actionRequired && <div className="absolute top-0 left-0 w-full h-1 bg-red-500 animate-pulse"></div>}
+                                <div className="w-16 h-16 rounded-full bg-gradient-to-tr from-gray-700 to-gray-600 flex items-center justify-center text-2xl mb-4 mx-auto border-2 border-white/10">
                                     👤
                                 </div>
-                                <h3 className="text-xl font-bold">{selectedItem.customer}</h3>
-                                <p className="text-sm text-gray-400">Recurring Customer</p>
+                                <h3 className="text-lg font-bold text-white">{selectedItem.phone}</h3>
+                                <p className="text-xs text-gray-500 uppercase tracking-widest mt-1">Customer</p>
                             </div>
 
-                            <div className="bg-white/5 p-4 rounded-xl border border-white/5 flex justify-between items-center">
-                                <span className="text-sm text-gray-400">Total Spent</span>
-                                <span className="text-[var(--gold-primary)] font-bold">₹0.00</span>
+                            {/* Intent Card */}
+                            <div className="bg-[#0f161d] p-4 rounded-xl border border-white/5 space-y-3">
+                                <h4 className="text-xs font-bold text-gray-500 uppercase tracking-widest">Current Intent</h4>
+                                <div className="flex items-center justify-between">
+                                    <span className="text-gray-300 text-sm">Goal</span>
+                                    <span className="text-[var(--gold-primary)] font-bold text-sm">{selectedItem.intent || 'Browsing'}</span>
+                                </div>
+                                <div className="flex items-center justify-between">
+                                    <span className="text-gray-300 text-sm">Interest</span>
+                                    <span className="text-white font-mono text-sm">{selectedItem.metal || 'N/A'}</span>
+                                </div>
+                                <div className="flex items-center justify-between">
+                                    <span className="text-gray-300 text-sm">Status</span>
+                                    <span className={`text-xs font-bold px-2 py-1 rounded ${selectedItem.actionRequired ? 'bg-red-500 text-black' : 'bg-green-500/20 text-green-500'}`}>
+                                        {selectedItem.actionRequired ? 'REQUIRES ACTION' : 'Active'}
+                                    </span>
+                                </div>
                             </div>
 
-                            <div className="bg-white/5 p-4 rounded-xl border border-white/5 opacity-50">
-                                <h4 className="text-sm font-bold text-gray-400 mb-2">Notes</h4>
-                                <textarea className="w-full bg-transparent text-sm resize-none outline-none" rows="4" placeholder="Add notes..."></textarea>
+                            {/* Actions */}
+                            <div className="space-y-2">
+                                <button className="w-full bg-white/5 hover:bg-white/10 text-white py-3 rounded-lg border border-white/10 text-sm font-medium transition-colors">
+                                    Mark as Resolved
+                                </button>
+                                <button className="w-full bg-red-500/10 hover:bg-red-500/20 text-red-500 py-3 rounded-lg border border-red-500/20 text-sm font-bold transition-colors">
+                                    Block Customer
+                                </button>
+                            </div>
+
+                            {/* Notes */}
+                            <div className="bg-white/5 p-4 rounded-xl border border-white/5 opacity-80">
+                                <h4 className="text-xs font-bold text-gray-500 mb-2 uppercase">Staff Notes</h4>
+                                <textarea className="w-full bg-transparent text-sm resize-none outline-none text-gray-300 placeholder-gray-600" rows="4" placeholder="Add internal notes about this customer..."></textarea>
                             </div>
                         </div>
                     ) : (
                         <div className="flex flex-col items-center justify-center h-full text-gray-600">
-                            <Users size={48} className="mb-4 opacity-20" />
-                            <p>Select a conversation</p>
+                            <AlertCircle size={48} className="mb-4 opacity-20" />
+                            <p className="text-sm">Select a conversation to view details</p>
                         </div>
                     )}
                 </div>
