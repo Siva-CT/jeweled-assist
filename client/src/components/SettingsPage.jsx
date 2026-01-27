@@ -1,5 +1,4 @@
-import React, { useState, useEffect } from 'react';
-import { Save, AlertTriangle } from 'lucide-react';
+import { Save, AlertTriangle, DollarSign } from 'lucide-react';
 import { API_URL } from '../config';
 
 const SettingsPage = () => {
