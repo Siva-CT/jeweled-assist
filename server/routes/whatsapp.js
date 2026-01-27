@@ -169,6 +169,13 @@ router.post('/', async (req, res) => {
 
     // --- CUSTOMER LOGIC ---
     let session = db.sessions[From] || { step: 'welcome', mode: 'bot' };
+
+    // INCREMENT STATS
+    if (!db.sessions[From]) {
+        db.stats.totalQueries = (db.stats.totalQueries || 0) + 1;
+        db.save();
+    }
+
     db.sessions[From] = session;
     db.messages.push({ from: From, to: 'admin', text: input, timestamp: new Date() });
     db.save(); // SAVE
@@ -186,7 +193,8 @@ router.post('/', async (req, res) => {
         idleTimers[From] = setTimeout(() => {
             sendReply(From, `👋 *Session Closed*\n\nThank you for your enquiry. Feel free to visit us anytime.\n\n📍 ${db.settings.storeLocation}`);
             session.mode = 'bot';
-            db.save(); // SAVE
+            // PRUNE MEMORY
+            db.prune();
         }, 10 * 60 * 1000); // 10 Min Timeout
         return;
     }

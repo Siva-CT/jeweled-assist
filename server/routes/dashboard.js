@@ -48,6 +48,7 @@ router.get('/stats', async (req, res) => {
         silverRate: rates.silver_gram_inr || 0,
         pendingCount: db.pendingApprovals.filter(p => p.status === 'pending_approval').length,
         qualifiedleads: db.pendingApprovals.filter(p => p.status === 'approved').length,
+        totalInquiries: db.stats.totalQueries || 0,
         lastUpdated: new Date()
     });
 });

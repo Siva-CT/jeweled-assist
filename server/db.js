@@ -26,6 +26,10 @@ const defaultData = {
         mapLink: "https://maps.google.com/?q=Jeweled+Showroom",
         approvalThreshold: 20000,
         manualRates: { gold: 0, silver: 0, platinum: 0 }
+    },
+    stats: {
+        totalQueries: 0,
+        lastRun: null
     }
 };
 
@@ -49,15 +53,37 @@ const loadedData = loadFile(DATA_FILE) || loadFile(BACKUP_FILE);
 
 if (loadedData) {
     data = { ...defaultData, ...loadedData };
-    // Deep merge settings to ensure new keys exist
+    // Deep merge settings
     data.settings = { ...defaultData.settings, ...data.settings };
     if (loadedData.manualRates) {
         data.settings.manualRates = { ...defaultData.settings.manualRates, ...loadedData.manualRates };
     }
+    // Merge stats
+    data.stats = { ...defaultData.stats, ...(data.stats || {}) };
 }
 
 const db = {
     ...data,
+    prune: () => {
+        const ONE_DAY = 24 * 60 * 60 * 1000;
+        const now = Date.now();
+
+        // Keep messages only if they are < 24 hours old OR belong to a pending approval/customer
+        const activeCustomers = new Set(db.pendingApprovals.map(p => p.customer));
+        // Add owner context customer to safe list
+        if (db.ownerContext?.customer) activeCustomers.add(db.ownerContext.customer);
+
+        const initialCount = db.messages.length;
+        db.messages = db.messages.filter(msg => {
+            const isFresh = (now - new Date(msg.timestamp).getTime()) < ONE_DAY;
+            return isFresh || activeCustomers.has(msg.from) || activeCustomers.has(msg.to);
+        });
+
+        if (initialCount !== db.messages.length) {
+            console.log(`🧹 Pruned ${initialCount - db.messages.length} old messages.`);
+            db.save();
+        }
+    },
     save: () => {
         try {
             const content = JSON.stringify({
@@ -65,7 +91,8 @@ const db = {
                 messages: db.messages,
                 sessions: db.sessions,
                 ownerContext: db.ownerContext,
-                settings: db.settings
+                settings: db.settings,
+                stats: db.stats
             }, null, 2);
 
             // 1. Write to backup first
