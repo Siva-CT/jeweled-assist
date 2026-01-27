@@ -86,29 +86,41 @@ const db = {
             console.log(`🧹 Pruned ${initialCount - db.messages.length} old messages.`);
             db.save();
         }
-    },
-    save: () => {
-        try {
-            const content = JSON.stringify({
-                pendingApprovals: db.pendingApprovals,
-                messages: db.messages,
-                sessions: db.sessions,
-                ownerContext: db.ownerContext,
-                settings: db.settings,
-                stats: db.stats,
-                customers: db.customers
-            }, null, 2);
-
-            // 1. Write to backup first
-            fs.writeFileSync(BACKUP_FILE, content);
-
-            // 2. Write to main file
-            fs.writeFileSync(DATA_FILE, content);
-
-        } catch (e) {
-            console.error("Failed to save database:", e);
-        }
+        db.save();
     }
+},
+    clearChat: (phone) => {
+        const initialCount = db.messages.length;
+// Keep messages that are NOT from/to this phone
+db.messages = db.messages.filter(msg => msg.from !== phone && msg.to !== phone);
+
+if (initialCount !== db.messages.length) {
+    console.log(`🗑️ Cleared ${initialCount - db.messages.length} messages for ${phone} (Memory Saved)`);
+    db.save();
+}
+    },
+save: () => {
+    try {
+        const content = JSON.stringify({
+            pendingApprovals: db.pendingApprovals,
+            messages: db.messages,
+            sessions: db.sessions,
+            ownerContext: db.ownerContext,
+            settings: db.settings,
+            stats: db.stats,
+            customers: db.customers
+        }, null, 2);
+
+        // 1. Write to backup first
+        fs.writeFileSync(BACKUP_FILE, content);
+
+        // 2. Write to main file
+        fs.writeFileSync(DATA_FILE, content);
+
+    } catch (e) {
+        console.error("Failed to save database:", e);
+    }
+}
 };
 
 // Initial Save if empty
