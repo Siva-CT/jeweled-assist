@@ -62,6 +62,46 @@ const approvalService = {
             console.error("Firebase Update Error:", error);
             return false;
         }
+    },
+
+    /**
+     * Log a chat message
+     * @param {Object} msg { from, to, text }
+     */
+    logMessage: async (msg) => {
+        try {
+            await db.collection('messages').add({
+                ...msg,
+                timestamp: new Date()
+            });
+        } catch (e) {
+            console.error("Firebase Message Log Error:", e);
+        }
+    },
+
+    /**
+     * Get chat history for a phone number
+     */
+    getChatHistory: async (phone) => {
+        try {
+            // Complex query: get messages FROM customer OR TO customer
+            // Firestore requires specific composite indexes for OR queries usually,
+            // so we might do two queries and merge for simplicity if indexes are missing.
+            // For now, let's assume we store them in a way that allows easy retrieval or just filtered on client.
+            // Simplified: Query all messages where 'conversationId' matches (if we had one)
+            // Or just fetch last 50 messages ordered by timestamp and filter in memory (efficient enough for small scale)
+
+            const snapshot = await db.collection('messages')
+                .orderBy('timestamp', 'desc')
+                .limit(50)
+                .get();
+
+            const all = snapshot.docs.map(d => d.data());
+            return all.filter(m => m.from === phone || m.to === phone).reverse();
+        } catch (e) {
+            console.error("Firebase History Error:", e);
+            return [];
+        }
     }
 };
 
