@@ -340,5 +340,14 @@ module.exports = {
     getBotStatus,
     updateBotStatus,
     getSettings,
-    updateSettings
+    updateSettings,
+    // --- DASHBOARD SYNC (FIRE-AND-FORGET) ---
+    syncConversation: async (phone, data) => {
+        // Write-Only: Powers the Inbox and Dashboard without blocking Reply
+        db.collection('conversations').doc(phone).set({
+            phone: phone,
+            updatedAt: new Date(),
+            ...data
+        }, { merge: true }).catch(e => console.error("Sync Error:", e.message));
+    }
 };

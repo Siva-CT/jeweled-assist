@@ -110,29 +110,37 @@ router.post('/', async (req, res) => {
         else if (session.step === 'menu') {
             if (cleanInput.includes('1') || cleanInput.includes('buy')) {
                 nextStep = 'buy_metal';
-                replyText = `🛍️ *Buy Jewellery*\n\nWhat kind of jewellery are you looking for?\n\nA️⃣ Gold (22K)\nB️⃣ Silver\nC️⃣ Platinum`;
+                replyText = `🛍️ *Buy Jewellery*\n\nWhat kind of jewellery are you looking for?\n\nA) Gold (22K)\nB) Silver\nC) Platinum`;
             }
             else if (cleanInput.includes('2') || cleanInput.includes('exchange')) {
                 nextStep = 'exchange_metal';
-                replyText = `Sure 😊\nWe offer transparent old gold exchange at live market rates.\n\nWhat would you like to exchange?\n\nA️⃣ Gold\nB️⃣ Silver\nC️⃣ Platinum`;
+                replyText = `Sure 😊\nWe offer transparent old gold exchange at live market rates.\n\nWhat would you like to exchange?\n\nA) Gold\nB) Silver\nC) Platinum`;
             }
             else if (cleanInput.includes('3') || cleanInput.includes('expert') || cleanInput.includes('advice')) {
                 nextMode = 'agent';
                 replyText = `Thank you 😊\nOur expert has been notified and will message you shortly to assist with your request.\n\nType *0* to return to the main menu.`;
-                // Deferred: Notify Owner
+
+                // BACKGROUND SYNC: Trigger Inbox Alert
+                approvalService.syncConversation(From, {
+                    requires_owner_action: true,
+                    bot_enabled: false,
+                    intent: 'Expert Advice',
+                    last_message_at: new Date()
+                });
+
                 notifyOwner(`💬 *Expert Advice Requested*\nCustomer: ${From}`);
             }
             else if (cleanInput.includes('4') || cleanInput.includes('location')) {
-                // Static Fallback for Speed (User can update this string in code if needed, or cache it)
-                replyText = `Here’s our store location 😊\n\n📍 *Jeweled Showroom*\nChennai, India\n\n🕒 Timings: 10:00 AM - 9:00 PM\n\nType *0* to return to the main menu.`;
+                replyText = `📍 *Jeweled Showroom*\nChennai, India\n🕘 Timings: 10:00 AM – 9:00 PM\n\n🗺️ *Google Maps*:\nhttps://maps.google.com/?q=Jeweled+Showroom+Chennai\n\nType *0* to return to the main menu.`;
                 nextStep = 'menu';
+                approvalService.syncConversation(From, { intent: 'Store Location', last_message_at: new Date() });
             }
             else {
                 replyText = "Please select an option (1-4) or type *0* for Menu.";
             }
         }
 
-        // ... (Simplified Buy Flow for RAM Bot) ...
+        // --- BUY FLOW (Strict: Metal -> Item -> Grams -> Price) ---
         else if (session.step === 'buy_metal') {
             let metal = null;
             if (cleanInput.includes('a') || cleanInput.includes('gold')) metal = 'Gold';
@@ -142,43 +150,80 @@ router.post('/', async (req, res) => {
             if (metal) {
                 session.buyFlow.metal = metal;
                 nextStep = 'buy_item';
-                replyText = `*${metal}* it is ✨\n\nWhat item are you looking for?\n\n1️⃣ Ring\n2️⃣ Chain / Necklace\n3️⃣ Bangle / Bracelet\n4️⃣ Earrings\n5️⃣ Coin / Bar\n6️⃣ Other`;
+                replyText = `*${metal}* it is ✨\n\nWhat item are you looking for?\n\n1) Ring\n2) Chain / Necklace\n3) Bangle / Bracelet\n4) Earrings\n5) Coin / Bar`;
             } else { replyText = "Please select A, B, or C."; }
         }
         else if (session.step === 'buy_item') {
-            let item = 'Other';
+            let item = null;
             if (cleanInput.includes('1') || cleanInput.includes('ring')) item = 'Ring';
-            else if (cleanInput.includes('2') || cleanInput.includes('chain')) item = 'Chain';
-            // ... simple strict mapping ...
-            session.buyFlow.itemType = item;
-            nextStep = 'buy_grams';
-            replyText = `Nice choice 👍\nApproximately how many grams are you looking for? (e.g. 5)`;
+            else if (cleanInput.includes('2') || cleanInput.includes('chain')) item = 'Chain / Necklace';
+            else if (cleanInput.includes('3') || cleanInput.includes('bangle')) item = 'Bangle / Bracelet';
+            else if (cleanInput.includes('4') || cleanInput.includes('earring')) item = 'Earrings';
+            else if (cleanInput.includes('5') || cleanInput.includes('coin')) item = 'Coin / Bar';
+
+            if (item) {
+                session.buyFlow.itemType = item;
+                nextStep = 'buy_grams';
+                replyText = `Nice choice 👍\nApproximately how many grams are you looking for? (e.g. 5)`;
+            } else { replyText = "Please select an option (1-5)."; }
         }
         else if (session.step === 'buy_grams') {
             const g = parseFloat(input.replace(/[^0-9.]/g, ''));
             if (g && g > 0) {
                 session.buyFlow.grams = g;
-                nextStep = 'buy_budget';
-                replyText = `Got it — *${g}g* noted 👍\nWhat is your approximate budget?`;
+
+                // FINAL CALCULATION (GST Included)
+                const rates = await getLiveRates(); // Cached/Api
+                let rate = 7000;
+                if (session.buyFlow.metal === 'Gold') rate = rates.gold_gram_inr || 7000;
+                else if (session.buyFlow.metal === 'Silver') rate = rates.silver_gram_inr || 90;
+                else if (session.buyFlow.metal === 'Platinum') rate = rates.platinum_gram_inr || 3500;
+
+                const baseValue = Math.round(rate * g);
+                const gst = Math.round(baseValue * 0.03);
+                const total = baseValue + gst;
+
+                replyText = `Here is your estimate 😊\n\n` +
+                    `Metal: *${session.buyFlow.metal}*\n` +
+                    `Item: *${session.buyFlow.itemType}*\n` +
+                    `Weight: *${g} g*\n\n` +
+                    `Rate per gram: ₹${rate.toLocaleString()}\n` +
+                    `Base value: ₹${baseValue.toLocaleString()}\n` +
+                    `GST (3%): ₹${gst.toLocaleString()}\n\n` +
+                    `💰 *Estimated Total: ₹${total.toLocaleString()}*\n\n` +
+                    `_Note: Making charges may vary depending on the jewellery design and craftsmanship._\n` +
+                    `_Final price will be confirmed in-store._\n\n` +
+                    `Type *0* to return to the main menu.`;
+
+                nextStep = 'menu';
+
+                // BACKGROUND SYNC
+                approvalService.syncConversation(From, {
+                    intent: 'Buy Estimate',
+                    last_message_at: new Date(),
+                    requires_owner_action: true // High intent
+                });
             } else { replyText = "Please enter a valid weight (e.g. 10)."; }
         }
-        else if (session.step === 'buy_budget') {
-            // For Strict Speed, we default to cached/default rates in pricingEngine (non-blocking)
-            // We will trigger calc asynchronously or just show estimate later? 
-            // "Auto Price Calculation" required.
-            // We'll call getLiveRates but NOT await it? No, we need it for reply.
-            // pricingEngine should have in-memory cache we can rely on.
-            const rates = await getLiveRates(); // This is now fast/cached
-            let rate = 7000;
-            if (session.buyFlow.metal === 'Gold') rate = rates.gold_gram_inr || 7000;
-            else if (session.buyFlow.metal === 'Silver') rate = rates.silver_gram_inr || 90;
 
-            const total = Math.round((rate * session.buyFlow.grams) * 1.15); // +15%
-            replyText = `💰 Estimated Price: *₹${total.toLocaleString()}*\n\nType *0* to return to the main menu.`;
-            nextStep = 'menu';
+        // --- EXCHANGE FLOW (Strict: Metal -> Disclaimer -> End) ---
+        else if (session.step === 'exchange_metal') {
+            let metal = null;
+            if (cleanInput.includes('a') || cleanInput.includes('gold')) metal = 'Gold';
+            else if (cleanInput.includes('b') || cleanInput.includes('silver')) metal = 'Silver';
+            else if (cleanInput.includes('c') || cleanInput.includes('platinum')) metal = 'Platinum';
 
-            // Deferred Meta update
-            approvalService.updateInboxMetadata(From, { intent: 'buy_jewellery', calculated_price: total });
+            if (metal) {
+                // END FLOW IMMEDIATELY
+                replyText = `Thank you 😊\n\nOld ${metal} value is calculated after purity testing at the store.\nThe final value depends on purity, weight & live rate.\n\n📍 *Visit us at*:\nhttps://maps.google.com/?q=Jeweled+Showroom+Chennai\n\nType *0* to return to the main menu.`;
+                nextStep = 'menu';
+
+                approvalService.syncConversation(From, {
+                    intent: 'Exchange Inquiry',
+                    last_message_at: new Date(),
+                    requires_owner_action: false
+                });
+            } else { replyText = "Please select A, B, or C."; }
         }
         else {
             // Unknown step? Reset.

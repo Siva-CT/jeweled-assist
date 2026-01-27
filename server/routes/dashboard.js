@@ -45,26 +45,64 @@ router.post('/send-message', async (req, res) => {
     }
 });
 
-// Get Stats (STATIC FOR STABILITY)
+// Get Stats (Restored - Light Query)
 router.get('/stats', async (req, res) => {
-    // Zero Reads. Just return status.
-    res.json({
-        goldRate: 0,
-        silverRate: 0,
-        pendingCount: 0,
-        qualifiedleads: 0,
-        totalInquiries: 0,
-        actionRequired: 0,
-        isManual: false,
-        lastUpdated: new Date()
-    });
+    try {
+        const rates = await getLiveRates(); // Cached
+
+        // Light Count Query (Requires Owner Action)
+        const snapshot = await db.collection('conversations')
+            .where('requires_owner_action', '==', true)
+            .get();
+
+        res.json({
+            goldRate: rates?.gold_gram_inr || 0,
+            silverRate: rates?.silver_gram_inr || 0,
+            pendingCount: 0,
+            qualifiedleads: 0,
+            totalInquiries: 0, // Keep 0 to avoid heavy scan
+            actionRequired: snapshot.size, // Real Count
+            isManual: !!rates?.isManual,
+            lastUpdated: new Date()
+        });
+    } catch (e) {
+        res.json({ goldRate: 0, silverRate: 0, actionRequired: 0, lastUpdated: new Date() });
+    }
 });
 
 // Get Pending (Approvals) - Disabled
 router.get('/pending', (req, res) => res.json([]));
 
-// Get Inbox - Disabled (Quota Safety)
-router.get('/inbox', (req, res) => res.json([]));
+// Get Inbox (Restored - Active Conversations Only)
+router.get('/inbox', async (req, res) => {
+    try {
+        const snapshot = await db.collection('conversations')
+            .where('requires_owner_action', '==', true)
+            .orderBy('createdAt', 'desc') // Ensure index exists or remove sort if error
+            .limit(20)
+            .get();
+
+        const list = snapshot.docs.map(doc => ({
+            phone: doc.id,
+            ...doc.data(),
+            lastContact: doc.data().last_message_at?.toDate()
+        }));
+
+        res.json(list);
+    } catch (e) {
+        console.error("Inbox Fetch Error:", e);
+        // Fallback without sort if index missing
+        try {
+            const snapshot2 = await db.collection('conversations')
+                .where('requires_owner_action', '==', true)
+                .limit(20)
+                .get();
+            res.json(snapshot2.docs.map(d => ({ phone: d.id, ...d.data() })));
+        } catch (e2) {
+            res.json([]);
+        }
+    }
+});
 
 // Get All Customers - Disabled
 router.get('/all-customers', (req, res) => res.json([]));
