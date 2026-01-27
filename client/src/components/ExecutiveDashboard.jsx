@@ -12,7 +12,7 @@ const ExecutiveDashboard = () => {
 
     const fetchData = async () => {
         try {
-            const res = await fetch(`${API_URL} /api/dashboard / stats`);
+            const res = await fetch(`${API_URL}/api/dashboard/stats`);
             const data = await res.json();
             if (data) setStats(data);
         } catch (e) { console.error(e); }

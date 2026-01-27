@@ -61,9 +61,14 @@ async function getLiveRates() {
         // Wait, GoldAPI response has "price_gram_24k", "price_gram_22k", "price_gram_21k" etc. 
         // Perfect! We don't need manual conversion if they provide it.
 
-        const gold22k = goldRes.price_gram_22k || (goldRes.price / 31.1035 * 0.916);
-        const silver1g = silverRes.price_gram_24k || (silverRes.price / 31.1035); // Silver usually 24k/Standard in bars
-        const plat1g = platRes.price_gram_24k || (platRes.price / 31.1035);
+        const gold22k = goldRes.price_gram_22k || (goldRes.price ? (goldRes.price / 31.1035 * 0.916) : null);
+        const silver1g = silverRes.price_gram_24k || (silverRes.price ? (silverRes.price / 31.1035) : null); // Silver usually 24k/Standard in bars
+        const plat1g = platRes.price_gram_24k || (platRes.price ? (platRes.price / 31.1035) : null);
+
+        // VALIDATION: Ensure we have numbers, otherwise throw to hit catch block
+        if (!gold22k || isNaN(gold22k) || !silver1g || isNaN(silver1g)) {
+            throw new Error("Invalid API Response or Key Limit Reached");
+        }
 
         const newRates = {
             gold_gram_inr: Math.round(gold22k),

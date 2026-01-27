@@ -18,6 +18,7 @@ const SettingsPage = () => {
         }
     });
     const [loading, setLoading] = useState(false);
+    const [saved, setSaved] = useState(false);
 
     useEffect(() => {
         // Fetch current settings
@@ -51,14 +52,18 @@ const SettingsPage = () => {
 
     const handleSave = async () => {
         setLoading(true);
-        // Simulate safe save to backend
+        setSaved(false);
         try {
             await fetch(`${API_URL}/api/dashboard/settings`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(settings)
             });
-            setTimeout(() => setLoading(false), 800);
+            setTimeout(() => {
+                setLoading(false);
+                setSaved(true);
+                setTimeout(() => setSaved(false), 3000);
+            }, 800);
         } catch (e) { setLoading(false); }
     };
 
@@ -114,54 +119,14 @@ const SettingsPage = () => {
                     </div>
                 </div>
 
-                {/* Store Timings Card */}
-                <div className="bg-[var(--bg-card)] border border-[var(--border-dim)] rounded-xl p-8">
-                    <h3 className="text-lg font-bold text-white mb-6">Store Timings</h3>
-                    <div className="space-y-4">
-                        {['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'].map(day => {
-                            const Label = day.charAt(0).toUpperCase() + day.slice(1) + (day === 'tue' ? 'sday' : day === 'wed' ? 'nesday' : day === 'thu' ? 'rsday' : day === 'sat' ? 'urday' : day === 'sun' ? 'day' : 'day');
-                            const isClosed = settings.store_timings?.[day]?.open === 'CLOSED';
-
-                            return (
-                                <div key={day} className={`flex items-center gap-4 p-3 rounded-lg ${day === 'sun' ? 'bg-[#ef4444]/10 border border-red-500/20' : 'bg-[#0f172a] border border-[var(--border-dim)]'}`}>
-                                    <div className="w-32 font-medium text-white text-sm">{Label}</div>
-
-                                    {day === 'sun' ? (
-                                        <div className="flex-1 text-right text-red-500 font-bold text-sm tracking-widest uppercase">CLOSED</div>
-                                    ) : (
-                                        <>
-                                            <input
-                                                className="bg-[#1e293b] text-white text-xs p-2 rounded border border-[var(--border-dim)] text-center w-24 focus:border-blue-500 outline-none"
-                                                value={settings.store_timings?.[day]?.open || '09:00 AM'}
-                                                onChange={e => handleTimingChange(day, 'open', e.target.value)}
-                                            />
-                                            <span className="text-[var(--text-secondary)]">-</span>
-                                            <input
-                                                className="bg-[#1e293b] text-white text-xs p-2 rounded border border-[var(--border-dim)] text-center w-24 focus:border-blue-500 outline-none"
-                                                value={settings.store_timings?.[day]?.close || '07:00 PM'}
-                                                onChange={e => handleTimingChange(day, 'close', e.target.value)}
-                                            />
-                                        </>
-                                    )}
-                                </div>
-                            );
-                        })}
-                    </div>
-                </div>
-
-                {/* Visual Placeholder for Map */}
-                <div className="h-32 w-full rounded-xl overflow-hidden relative border border-[var(--border-dim)] opacity-60 grayscale hover:grayscale-0 transition-all">
-                    <img src="https://api.mapbox.com/styles/v1/mapbox/dark-v10/static/-74.0060,40.7128,14,0/1000x300?access_token=pk.bw" alt="" className="w-full h-full object-cover bg-[#0f172a]" />
-                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                        <span className="bg-black/60 px-3 py-1 rounded text-xs font-bold tracking-widest text-white border border-white/20">STORE LOCATION PREVIEW</span>
-                    </div>
-                </div>
-
             </div>
 
             {/* Floating Footer */}
             <div className="fixed bottom-0 right-0 w-[calc(100%-16rem)] bg-[var(--bg-main)]/95 backdrop-blur-md border-t border-[var(--border-dim)] p-4 flex justify-end gap-3 z-30">
-                <button className="px-6 py-2.5 rounded-lg border border-[var(--border-dim)] text-white font-medium hover:bg-white/5 transition-colors">
+                <button
+                    onClick={() => window.location.reload()}
+                    className="px-6 py-2.5 rounded-lg border border-[var(--border-dim)] text-white font-medium hover:bg-white/5 transition-colors"
+                >
                     Discard Changes
                 </button>
                 <button
@@ -173,9 +138,9 @@ const SettingsPage = () => {
                     Save Settings
                 </button>
             </div>
-            <div className="fixed bottom-4 left-[18rem] flex items-center gap-2 text-[#10b981] text-xs font-medium opacity-0 animate-fade-in transition-opacity duration-1000" style={{ opacity: loading === false ? 1 : 0 }}>
+            <div className={`fixed bottom-4 left-[18rem] flex items-center gap-2 text-[#10b981] text-xs font-medium transition-opacity duration-500 ${saved ? 'opacity-100' : 'opacity-0'}`}>
                 <div className="w-4 h-4 rounded-full bg-[#10b981] flex items-center justify-center text-[10px] text-black">✓</div>
-                Settings synced with /api/settings
+                Settings saved successfully
             </div>
         </div>
     );
