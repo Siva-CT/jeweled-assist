@@ -35,14 +35,10 @@ app.get('/health', (req, res) => {
     res.status(200).send('OK');
 });
 
-// Serve frontend in production
-if (process.env.NODE_ENV === 'production') {
-    app.use(express.static(path.join(__dirname, '../client/dist')));
-    // Express wildcard
-    app.get('*', (req, res) => {
-        res.sendFile(path.join(__dirname, '../client/dist/index.html'));
-    });
-}
+// Final Catch-All Handler (API Only - No Frontend Serving)
+app.use((req, res) => {
+    res.status(200).send("OK");
+});
 
 app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
