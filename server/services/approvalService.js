@@ -252,16 +252,10 @@ const updateSession = async (phone, data) => {
 
 
 
-// --- IN-MEMORY CACHE (Avoid Firestore Quota Exhaustion) ---
+// --- IN-MEMORY CACHE (Primary State Store for Performance) ---
 const sessionCache = new Map();
 const customerCache = new Map();
-const CACHE_TTL = 60 * 1000; // 60 Seconds
-
-// Periodic Cache Cleanup (Every 5 mins)
-setInterval(() => {
-    sessionCache.clear();
-    customerCache.clear();
-}, 5 * 60 * 1000);
+const CACHE_TTL = 10 * 60 * 1000; // 10 Minutes Session Timeout
 
 // Helper for caching
 const getFromCache = (cache, key) => {
@@ -274,7 +268,7 @@ const getFromCache = (cache, key) => {
 };
 
 const setCache = (cache, key, val) => {
-    if (val) cache.set(key, { val, ts: Date.now() });
+    cache.set(key, { val, ts: Date.now() });
 };
 
 // ... (Existing exports below, methods updated)
@@ -283,13 +277,48 @@ module.exports = {
     create,
     getPending,
     approve,
-    logMessage,
-    updateCustomerActivity,
+    logMessage: async (msg) => {
+        // Fire-and-Forget Log
+        db.collection('messages').add({ ...msg, timestamp: new Date() }).catch(e => console.error("Log Error:", e.message));
+    },
+    updateCustomerActivity: async (phone, lastText) => {
+        // Fire-and-Forget Update
+        db.collection('customers').doc(phone).set({
+            phone, lastQuery: lastText, lastContact: new Date(), updatedAt: new Date()
+        }, { merge: true }).catch(e => console.error("Activity Update Error:", e.message));
+    },
+    // RAM-Only Accessor for Hot Path
+    getInMemorySession: (phone) => {
+        return getFromCache(sessionCache, phone) || null;
+    },
+    // RAM + Background Sync
+    updateSession: (phone, data) => {
+        // 1. Update RAM (Instant)
+        setCache(sessionCache, phone, { ...data, updatedAt: new Date() });
+
+        // 2. Fire-and-Forget Persist
+        db.collection('sessions').doc(phone).set({
+            ...data,
+            updatedAt: new Date()
+        }, { merge: true }).catch(e => console.error("Session Sync Error:", e.message));
+    },
+    // Legacy / Admin methods (can remain async/blocking if needed, but not for bot)
+    getSession: async (phone) => {
+        const cached = getFromCache(sessionCache, phone);
+        if (cached) return cached;
+        // Fallback to DB (Only for Admin/Debug, not Bot Loop)
+        return safeRead(async () => {
+            const doc = await db.collection('sessions').doc(phone).get();
+            const data = doc.exists ? doc.data() : null;
+            if (data) setCache(sessionCache, phone, data);
+            return data;
+        }, null);
+    },
     getCustomer: async (phone) => {
-        // Cache Check
         const cached = getFromCache(customerCache, phone);
         if (cached) return cached;
-
+        // Optimization: For bot, we might skip this if strict speed needed
+        // But for now, we'll keep the safe read with cache
         return safeRead(async () => {
             const doc = await db.collection('customers').doc(phone).get();
             const data = doc.exists ? doc.data() : null;
@@ -300,7 +329,10 @@ module.exports = {
     getRecentCustomers,
     getChatHistory,
     getInbox,
-    updateInboxMetadata,
+    updateInboxMetadata: async (phone, metadata) => {
+        db.collection('customers').doc(phone).set({ ...metadata, updatedAt: new Date() }, { merge: true })
+            .catch(e => console.error("Inbox Meta Error:", e.message));
+    },
     getStoreSettings,
     updateStoreSettings,
     getPricingConfig,
@@ -308,29 +340,5 @@ module.exports = {
     getBotStatus,
     updateBotStatus,
     getSettings,
-    updateSettings,
-    getSession: async (phone) => {
-        // Cache Check
-        const cached = getFromCache(sessionCache, phone);
-        if (cached) return cached;
-
-        return safeRead(async () => {
-            const doc = await db.collection('sessions').doc(phone).get();
-            const data = doc.exists ? doc.data() : null;
-            if (data) setCache(sessionCache, phone, data);
-            return data;
-        }, null);
-    },
-    updateSession: async (phone, data) => {
-        // Update Cache Immediately
-        setCache(sessionCache, phone, { ...data, updatedAt: new Date() });
-        try {
-            await db.collection('sessions').doc(phone).set({
-                ...data,
-                updatedAt: new Date()
-            }, { merge: true });
-        } catch (e) {
-            console.error("Session Update Error", e);
-        }
-    }
+    updateSettings
 };
