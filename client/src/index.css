@@ -3,24 +3,39 @@
 @tailwind utilities;
 
 :root {
-    /* Base Backgrounds */
-    --bg-deep: #020B13;
-    --bg-panel: #0A141D;
-    --bg-hover: #13202C;
+    /* Premium Navy Theme */
+    --bg-main: #0b1120;
+    /* Deepest Navy (Background) */
+    --bg-sidebar: #0f172a;
+    /* Sidebar/Panel Background */
+    --bg-card: #1e293b;
+    /* Card/Input Background */
+    --bg-card-hover: #334155;
 
     /* Text */
-    --text-primary: #F5F5F5;
-    --text-secondary: #94A3B8;
+    --text-primary: #f8fafc;
+    --text-secondary: #94a3b8;
+    --text-muted: #64748b;
+
+    /* Brand Actions */
+    --primary: #2563eb;
+    /* Royal Blue (Buttons/Active) */
+    --primary-hover: #1d4ed8;
 
     /* Accents */
-    --gold-primary: #D5B038;
-    --gold-dim: #997B1A;
-    --gold-glow: rgba(213, 176, 56, 0.2);
+    --gold: #f59e0b;
+    /* Gold (Metrics/Rates) */
+    --success: #10b981;
+    --danger: #ef4444;
 
-    /* Status */
-    --status-bot: #10B981;
-    --status-human: #EF4444;
-    --status-pending: #F59E0B;
+    /* Global Borders */
+    --border-dim: rgba(255, 255, 255, 0.08);
+}
+
+body {
+    background-color: var(--bg-main);
+    color: var(--text-primary);
+    font-family: 'Inter', sans-serif;
 }
 
 body {
