@@ -47,16 +47,7 @@ const Sidebar = ({ activePage, setActivePage }) => {
 
             {/* Footer Profile */}
             <div className="p-4 border-t border-[var(--border-dim)] bg-[#0b0c15]/30">
-                <div className="flex items-center gap-3 p-3 rounded-xl bg-[var(--bg-card)] border border-[var(--border-dim)] hover:border-[var(--text-muted)] transition-colors cursor-pointer group">
-                    <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-gray-700 to-gray-600 flex items-center justify-center border border-white/10">
-                        <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Marcus" alt="M" className="w-full h-full rounded-full" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                        <p className="text-sm font-bold text-white truncate group-hover:text-[var(--primary)] transition-colors">Marcus Sterling</p>
-                        <p className="text-[10px] text-[var(--text-muted)] truncate">Premium Admin</p>
-                    </div>
-                    <LogOut size={16} className="text-[var(--text-muted)] hover:text-white transition-colors" />
-                </div>
+
             </div>
         </div>
     );

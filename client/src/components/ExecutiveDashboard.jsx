@@ -127,36 +127,7 @@ const ExecutiveDashboard = () => {
                 ))}
             </div>
 
-            {/* Central Activity Area (Empty State as per Mockup) */}
-            <div className="rounded-3xl border border-[var(--border-dim)] bg-[var(--bg-card)]/50 border-dashed border-white/10 h-[400px] flex flex-col items-center justify-center relative overflow-hidden">
-                {/* Background Glow */}
-                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-blue-500/5 blur-[80px] rounded-full pointer-events-none"></div>
 
-                <div className="relative z-10 text-center">
-                    <div className="w-20 h-20 bg-[var(--bg-card)] rounded-full flex items-center justify-center border border-[var(--border-dim)] mb-6 mx-auto shadow-2xl relative">
-                        <Box className="text-[var(--text-muted)] opacity-50" size={32} />
-                        <div className="absolute -top-1 -right-1 w-6 h-6 bg-[var(--primary)] rounded-full flex items-center justify-center border-2 border-[var(--bg-main)]">
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round">
-                                <polyline points="20 6 9 17 4 12"></polyline>
-                            </svg>
-                        </div>
-                    </div>
-
-                    <h3 className="text-xl font-bold text-white mb-2">Concierge Activity</h3>
-                    <p className="text-sm text-[var(--text-secondary)] max-w-md mx-auto leading-relaxed mb-8">
-                        Your dashboard is current. No further AI handoffs or critical escalations required at this moment. You're all caught up with luxury requests.
-                    </p>
-
-                    <div className="flex items-center justify-center gap-4">
-                        <button className="px-6 py-2.5 bg-[#2563eb] hover:bg-[#1d4ed8] text-white text-sm font-bold rounded-lg shadow-lg shadow-blue-900/20 transition-all">
-                            View All Sessions
-                        </button>
-                        <button className="px-6 py-2.5 bg-transparent border border-[var(--border-dim)] hover:bg-white/5 text-[var(--text-secondary)] hover:text-white text-sm font-bold rounded-lg transition-all">
-                            Activity Log
-                        </button>
-                    </div>
-                </div>
-            </div>
 
             {/* Footer Copyright */}
             <div className="mt-12 flex justify-between items-center text-[10px] text-[var(--text-muted)] font-medium tracking-wider uppercase opacity-40">
