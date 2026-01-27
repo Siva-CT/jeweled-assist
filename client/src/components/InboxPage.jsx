@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Filter, Bell, Phone, Video, MoreVertical, Paperclip, Send, Check, CheckCheck, User, X } from 'lucide-react';
+import { Search, Filter, Bell, Phone, Video, MoreVertical, Paperclip, Send, Check, CheckCheck, User, X, MessageSquare } from 'lucide-react';
 import { API_URL } from '../config';
 
 const InboxPage = () => {
