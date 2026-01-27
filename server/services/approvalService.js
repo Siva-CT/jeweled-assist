@@ -1,5 +1,5 @@
 const db = require('../firebase');
-const PDFDocument = require('pdfkit'); // For PDF generation
+
 
 const COLLECTION = 'approvals';
 
@@ -280,80 +280,7 @@ const getMonthlyCustomerAnalytics = async () => {
     }, []);
 };
 
-// --- PDF GENERATION ---
-const generateCustomerPDF = async (phone, res) => {
-    try {
-        // Fetch Data
-        const customerDoc = await safeRead(() => db.collection('customers').doc(phone).get());
-        const customerData = customerDoc && customerDoc.exists ? customerDoc.data() : {};
 
-        // Helper to check intent usage
-        // We'll just list the last few intents from messages if we don't have aggregated fields
-        // But for speed, let's use what we have in customerData (updated by whatsapp.js)
-
-        const doc = new PDFDocument();
-
-        res.setHeader('Content-Type', 'application/pdf');
-        res.setHeader('Content-Disposition', `attachment; filename=customer_${phone}.pdf`);
-
-        doc.pipe(res);
-
-        // Header
-        doc.fontSize(20).text('JeweledAssist - Customer Summary', { align: 'center' });
-        doc.moveDown();
-        doc.fontSize(10).text(`Generated on: ${new Date().toLocaleString()}`, { align: 'right' });
-        doc.moveDown();
-        doc.moveTo(50, doc.y).lineTo(550, doc.y).stroke();
-        doc.moveDown();
-
-        // Customer Details
-        doc.fontSize(14).text('Customer Details');
-        doc.moveDown(0.5);
-        doc.fontSize(12).font('Helvetica-Bold').text(`Phone Number: ${phone}`);
-        doc.font('Helvetica').text(`Last Interaction: ${customerData.lastContact ? customerData.lastContact.toDate().toLocaleString() : 'N/A'}`);
-        doc.text(`Store Visit Scheduled: ${customerData.storeVisitScheduled ? 'Yes' : 'No'}`);
-        doc.moveDown();
-
-        // Conversation Summary
-        doc.fontSize(14).text('Conversation Summary');
-        doc.moveDown(0.5);
-
-        const intents = [];
-        if (customerData.intent) intents.push(customerData.intent);
-        // This is a basic export. In a real system we'd query all messages to find all intents.
-        // For now, we list the LATEST known intent.
-        doc.fontSize(12).text(`Latest Intent: ${customerData.intent || 'None'}`);
-
-        doc.moveDown();
-
-        // Latest Buy Request
-        if (customerData.intent === 'buy_jewellery') {
-            doc.fontSize(14).text('Latest Purchase Inquiry');
-            doc.moveDown(0.5);
-            doc.fontSize(12).text(`Metal: ${customerData.metal || 'N/A'}`);
-            doc.text(`Item: ${customerData.item_type || 'N/A'}`);
-            doc.text(`Weight: ${customerData.grams || 0}g`);
-            doc.text(`Price per Gram: ${customerData.price_per_gram || 'N/A'}`);
-            doc.text(`Estimated Price: ${customerData.calculated_price || 'N/A'}`);
-            doc.text(`Price Source: ${customerData.price_source || 'N/A'}`);
-            doc.moveDown();
-        }
-
-        // Staff Notes (Placeholder)
-        doc.fontSize(14).text('Staff Notes');
-        doc.moveDown(0.5);
-        doc.fontSize(12).text(customerData.notes || 'No notes available.');
-
-        // Footer
-        doc.moveDown(2);
-        doc.fontSize(10).text('Source: JeweledAssist Admin Panel', { align: 'center', color: 'grey' });
-
-        doc.end();
-    } catch (e) {
-        console.error("PDF Gen Error:", e);
-        if (!res.headersSent) res.status(500).send("PDF Generation Failed");
-    }
-};
 
 module.exports = {
     create,
@@ -377,6 +304,5 @@ module.exports = {
     updateSession,
     incrementMonthlyQueries,
     getMonthlyStats,
-    getMonthlyCustomerAnalytics,
-    generateCustomerPDF
+    getMonthlyCustomerAnalytics
 };
