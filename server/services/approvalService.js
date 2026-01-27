@@ -131,20 +131,21 @@ const getRecentCustomers = async () => {
 /**
  * Get chat history for a phone number (Fail-safe)
  */
+/**
+ * Get chat history for a phone number (Fail-safe)
+ */
 const getChatHistory = async (phone) => {
     return safeRead(async () => {
-        // Fetch messages where 'from' is phone
+        // Fetch messages where 'from' is phone (No orderBy to avoid Index issues)
         const msgFrom = await db.collection('messages')
             .where('from', '==', phone)
-            .orderBy('timestamp', 'desc')
-            .limit(20)
+            .limit(50)
             .get();
 
         // Fetch messages where 'to' is phone
         const msgTo = await db.collection('messages')
             .where('to', '==', phone)
-            .orderBy('timestamp', 'desc')
-            .limit(20)
+            .limit(50)
             .get();
 
         const all = [
@@ -152,7 +153,12 @@ const getChatHistory = async (phone) => {
             ...msgTo.docs.map(d => d.data())
         ];
 
-        return all.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+        // RAM Sort (Ascending for Chat UI)
+        return all.sort((a, b) => {
+            const tA = a.timestamp?._seconds ? a.timestamp._seconds * 1000 : new Date(a.timestamp).getTime();
+            const tB = b.timestamp?._seconds ? b.timestamp._seconds * 1000 : new Date(b.timestamp).getTime();
+            return tA - tB;
+        });
     }, []);
 };
 

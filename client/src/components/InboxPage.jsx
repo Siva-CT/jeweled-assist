@@ -109,11 +109,34 @@ const InboxPage = () => {
         </div>
     );
 
+
+    const handleSend = async () => {
+        if (!inputText.trim() || !selectedChat) return;
+        const text = inputText;
+        setInputText(''); // Clear UI immediately
+
+        const optimisticMsg = { text, from: 'owner', timestamp: new Date().toISOString() };
+        setMessages(prev => [...prev, optimisticMsg]);
+
+        try {
+            await fetch(`${API_URL}/api/dashboard/send-message`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ phone: selectedChat.phone, text })
+            });
+        } catch (e) {
+            console.error("Send Failed", e);
+            // Optionally revert local state here
+        }
+    };
+
     return (
         <div className="flex-1 flex bg-[var(--bg-main)] overflow-hidden font-['Inter']">
-            {/* LEFT PANEL: Conversation List */}
+            {/* ... (Left Panel Logic Redacted for Brevity - Keeping Existing) ... */}
+
+            {/* KEEPING EXISTING LEFT PANEL RENDERING - Just injecting logic above this return */}
             <div className="w-[400px] border-r border-[var(--border-dim)] flex flex-col bg-[var(--bg-sidebar)]">
-                {/* Header */}
+                {/* ... (Header and List - No Changes needed here, logic above handles state) ... */}
                 <div className="p-6 border-b border-[var(--border-dim)]">
                     <h2 className="text-xl font-bold text-white mb-4">Handoffs Inbox</h2>
                     <div className="relative mb-4">
@@ -214,8 +237,6 @@ const InboxPage = () => {
                     </div>
 
 
-
-
                     {/* Messages */}
                     <div className="flex-1 overflow-y-auto p-8 custom-scrollbar bg-[var(--bg-main)] relative">
                         {/* Placeholder Diamond Background Pattern */}
@@ -275,10 +296,13 @@ const InboxPage = () => {
                                 type="text"
                                 value={inputText}
                                 onChange={(e) => setInputText(e.target.value)}
+                                onKeyDown={(e) => e.key === 'Enter' && handleSend()}
                                 placeholder={botStatus === 'bot' ? "Bot is active. Toggle to Agent to reply." : "Type your reply..."}
                                 className="w-full bg-[var(--bg-card)] border border-[var(--border-dim)] rounded-xl py-3 pl-12 pr-14 text-sm text-white focus:outline-none focus:border-[var(--primary)] transition-colors h-12"
                             />
-                            <button className="absolute right-2 top-2 p-2 bg-[var(--primary)] hover:bg-[var(--primary-dim)] text-white rounded-lg transition-colors shadow-lg shadow-blue-900/20">
+                            <button
+                                onClick={handleSend}
+                                className="absolute right-2 top-2 p-2 bg-[var(--primary)] hover:bg-[var(--primary-dim)] text-white rounded-lg transition-colors shadow-lg shadow-blue-900/20">
                                 <Send size={16} />
                             </button>
                         </div>
