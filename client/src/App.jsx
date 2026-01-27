@@ -19,6 +19,9 @@ function App() {
     useEffect(() => { localStorage.setItem('app_activePage', activePage); }, [activePage]);
     useEffect(() => { localStorage.setItem('app_activeTab', activeTab); }, [activeTab]);
 
+    // Audio Ref
+    const audioRef = React.useRef(new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3')); // Gentle bell
+
     // Polling Data
     useEffect(() => {
         const fetchData = async () => {
@@ -27,7 +30,16 @@ function App() {
                 setStats(await statsRes.json());
                 // Fetch Inbox
                 const inboxRes = await fetch(`${API_URL}/api/dashboard/inbox`);
-                setPending(await inboxRes.json()); // reusing 'pending' var for inbox items
+                const newInbox = await inboxRes.json();
+
+                // Play Sound if new Action Required
+                const prevActionCount = pending.filter(p => p.actionRequired).length;
+                const newActionCount = newInbox.filter(p => p.actionRequired).length;
+                if (newActionCount > prevActionCount) {
+                    audioRef.current.play().catch(e => console.log("Audio play failed (user interaction needed)"));
+                }
+
+                setPending(newInbox);
             } catch (e) {
                 console.error("API Error", e);
             }
@@ -35,7 +47,7 @@ function App() {
         fetchData();
         const interval = setInterval(fetchData, 3000); // Faster polling for Chat
         return () => clearInterval(interval);
-    }, []);
+    }, [pending]); // Dep on pending to compare
 
     const handleApprove = async (id, finalPrice) => {
         await fetch(`${API_URL}/api/dashboard/approve`, {

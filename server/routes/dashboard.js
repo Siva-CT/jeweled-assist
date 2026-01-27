@@ -55,13 +55,15 @@ router.get('/stats', async (req, res) => {
         const safeGold = rates?.gold_gram_inr || 0;
         const safeSilver = rates?.silver_gram_inr || 0;
 
+        const monthlyStats = await approvalService.getMonthlyStats();
+
         res.json({
             goldRate: safeGold,
             silverRate: safeSilver,
             pendingCount: pending.length,
             qualifiedleads: pending.filter(p => p.status === 'approved').length,
-            totalInquiries: db.stats.totalQueries || 0,
-            actionRequired: pending.length, // Heuristic for now
+            totalInquiries: monthlyStats.totalQueries || 0,
+            actionRequired: pending.filter(p => p.actionRequired).length,
             isManual: !!rates?.isManual,
             lastUpdated: new Date()
         });

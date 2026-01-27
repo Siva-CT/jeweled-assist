@@ -244,6 +244,56 @@ const updateSettings = async (data) => {
     return updateStoreSettings(data);
 };
 
+// --- SESSION MANAGEMENT ---
+
+const getSession = async (phone) => {
+    try {
+        const doc = await db.collection('sessions').doc(phone).get();
+        return doc.exists ? doc.data() : null;
+    } catch (e) { return null; }
+};
+
+const updateSession = async (phone, data) => {
+    try {
+        await db.collection('sessions').doc(phone).set({
+            ...data,
+            updatedAt: new Date()
+        }, { merge: true });
+    } catch (e) {
+        console.error("Session Update Error", e);
+    }
+};
+
+// --- ANALYTICS ---
+
+const incrementMonthlyQueries = async () => {
+    const now = new Date();
+    const monthKey = `enquiries_${now.getFullYear()}_${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const statsRef = db.collection('analytics').doc('monthly');
+
+    try {
+        await db.runTransaction(async (t) => {
+            const doc = await t.get(statsRef);
+            const current = doc.exists ? (doc.data()[monthKey] || 0) : 0;
+            t.set(statsRef, { [monthKey]: current + 1 }, { merge: true });
+        });
+    } catch (e) {
+        // Fallback for non-transactional envs if needed, or just log
+        console.error("Analytics Inc Error", e);
+    }
+};
+
+const getMonthlyStats = async () => {
+    const now = new Date();
+    const monthKey = `enquiries_${now.getFullYear()}_${String(now.getMonth() + 1).padStart(2, '0')}`;
+    try {
+        const doc = await db.collection('analytics').doc('monthly').get();
+        return {
+            totalQueries: doc.exists ? (doc.data()[monthKey] || 0) : 0
+        };
+    } catch (e) { return { totalQueries: 0 }; }
+};
+
 module.exports = {
     create,
     getPending,
@@ -261,5 +311,9 @@ module.exports = {
     getBotStatus,
     updateBotStatus,
     getSettings,
-    updateSettings
+    updateSettings,
+    getSession,
+    updateSession,
+    incrementMonthlyQueries,
+    getMonthlyStats
 };
