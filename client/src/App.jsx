@@ -86,9 +86,14 @@ function App() {
                                         <span className="text-[10px] font-bold bg-red-500/20 text-red-500 px-2 py-0.5 rounded border border-red-500/20 animate-pulse">ACTION</span>
                                     )}
                                 </div>
-                                <p className="text-xs text-gray-500 truncate mb-2">
-                                    {item.lastQuery || 'New Conversation'}
-                                </p>
+                                <div className="flex justify-between items-center mb-2">
+                                    <p className="text-xs text-gray-500 truncate w-[70%]">
+                                        {item.lastQuery || 'New Conversation'}
+                                    </p>
+                                    <span className="text-[9px] text-gray-600 font-mono">
+                                        {item.lastContact ? new Date(item.lastContact).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
+                                    </span>
+                                </div>
                                 {/* Tags */}
                                 <div className="flex gap-1 flex-wrap">
                                     {item.intent && (

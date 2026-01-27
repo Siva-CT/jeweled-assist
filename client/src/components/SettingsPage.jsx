@@ -6,6 +6,7 @@ const SettingsPage = () => {
         storeLocation: '',
         ownerNumber: '',
         approvalThreshold: 20000,
+        useManualRates: false,
         manualRates: { gold: '', silver: '', platinum: '' }
     });
     const [loading, setLoading] = useState(false);
@@ -13,7 +14,15 @@ const SettingsPage = () => {
     useEffect(() => {
         fetch(`${API_URL}/api/dashboard/settings`)
             .then(res => res.json())
-            .then(data => setSettings({ ...settings, ...data }));
+            .then(data => {
+                // Safe Merge
+                setSettings(prev => ({
+                    ...prev,
+                    ...data,
+                    manualRates: { ...prev.manualRates, ...(data.manualRates || {}) }
+                }));
+            })
+            .catch(console.error);
     }, []);
 
     const handleChange = (field, value) => {
@@ -110,7 +119,7 @@ const SettingsPage = () => {
                                     className="w-full bg-[#050b11] border border-white/10 focus:border-[var(--gold-primary)] rounded-lg p-3 text-white text-right font-mono outline-none transition-colors"
                                     type="number"
                                     placeholder="Live"
-                                    value={settings.manualRates?.[metal]}
+                                    value={settings.manualRates?.[metal] || ''}
                                     onChange={e => handleRateChange(metal, e.target.value)}
                                 />
                             </div>
