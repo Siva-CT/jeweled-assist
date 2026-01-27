@@ -43,7 +43,8 @@ async function sendReply(to, body, mediaUrl = null) {
 
 async function notifyOwner(message) {
     const remoteSettings = await approvalService.getStoreSettings();
-    const currentOwner = remoteSettings?.ownerNumber || process.env.OWNER_NUMBER || db.settings.ownerNumber; // Multi-level fallback
+    const currentOwner = remoteSettings?.ownerNumber || db.settings.ownerNumber; // Multi-level fallback
+    if (!currentOwner) return; // Silent fail if no owner configured
     const ownerNum = currentOwner.startsWith('whatsapp:') ? currentOwner : `whatsapp:${currentOwner}`;
 
     await client.messages.create({
@@ -256,11 +257,8 @@ router.post('/', async (req, res) => {
         console.error("🔥 CRITICAL BOT ERROR:", routeError);
         // Emergency Alert to Owner (Fire-and-Forget)
         const crashMsg = `Bot Crash: ${routeError.message}`;
-        client.messages.create({
-            from: `whatsapp:${process.env.TWILIO_PHONE_NUMBER}`,
-            to: process.env.OWNER_NUMBER ? `whatsapp:${process.env.OWNER_NUMBER}` : undefined,
-            body: crashMsg // Safe if owner number is missing (catch block inside)
-        }).catch(e => console.error("Failed to send crash alert:", e));
+        /* Owner Alert Disabled - Check Logs */
+        console.error("Crash Alert not sent (Owner Number removed)");
     }
 });
 
