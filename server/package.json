@@ -11,10 +11,11 @@
         "dev": "node --watch index.js"
     },
     "dependencies": {
-        "express": "^5.0.0",
+        "body-parser": "^1.20.2",
         "cors": "^2.8.5",
         "dotenv": "^16.3.1",
-        "twilio": "^4.19.0",
-        "body-parser": "^1.20.2"
+        "express": "^5.0.0",
+        "firebase-admin": "^13.6.0",
+        "twilio": "^4.19.0"
     }
 }
