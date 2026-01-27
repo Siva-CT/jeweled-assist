@@ -45,173 +45,29 @@ router.post('/send-message', async (req, res) => {
     }
 });
 
-// Get Stats
+// Get Stats (STATIC FOR STABILITY)
 router.get('/stats', async (req, res) => {
-    try {
-        const rates = await getLiveRates();
-        const pending = await approvalService.getPending();
-
-        // Defensive checks for rates
-        const safeGold = rates?.gold_gram_inr || 0;
-        const safeSilver = rates?.silver_gram_inr || 0;
-
-        // removed monthly stats for performance stability
-        // const monthlyStats = await approvalService.getMonthlyStats();
-
-        res.json({
-            goldRate: safeGold,
-            silverRate: safeSilver,
-            pendingCount: pending.length,
-            qualifiedleads: pending.filter(p => p.status === 'approved').length,
-            totalInquiries: 0, // Disabled for stability
-            actionRequired: pending.filter(p => p.actionRequired).length,
-            isManual: !!rates?.isManual,
-            lastUpdated: new Date()
-        });
-    } catch (e) {
-        console.error("Stats Error:", e);
-        // Return fail-safe defaults instead of 500 to keep dashboard alive
-        res.json({
-            goldRate: 0,
-            silverRate: 0,
-            pendingCount: 0,
-            totalInquiries: 0,
-            error: "Backend Error"
-        });
-    }
+    // Zero Reads. Just return status.
+    res.json({
+        goldRate: 0,
+        silverRate: 0,
+        pendingCount: 0,
+        qualifiedleads: 0,
+        totalInquiries: 0,
+        actionRequired: 0,
+        isManual: false,
+        lastUpdated: new Date()
+    });
 });
 
-// Get Pending (Approvals)
-router.get('/pending', async (req, res) => {
-    try {
-        const list = await approvalService.getPending();
-        res.json(list);
-    } catch (e) {
-        res.status(500).json({ error: "Fetch failed" });
-    }
-});
+// Get Pending (Approvals) - Disabled
+router.get('/pending', (req, res) => res.json([]));
 
-// Get Inbox (Active Conversations) -- NEW FIX
-router.get('/inbox', async (req, res) => {
-    try {
-        const list = await approvalService.getInbox();
-        res.json(list);
-    } catch (e) {
-        console.error("Inbox Fetch Error:", e);
-        res.status(500).json({ error: "Inbox fetch failed" });
-    }
-});
+// Get Inbox - Disabled (Quota Safety)
+router.get('/inbox', (req, res) => res.json([]));
 
-
-// Approve Estimate
-router.post('/approve', async (req, res) => {
-    const { id, finalPrice } = req.body;
-    try {
-        const success = await approvalService.approve(id, finalPrice);
-        if (!success) return res.status(404).json({ error: "Approval failed" });
-        res.json({ success: true, id });
-    } catch (err) {
-        console.error("Error:", err);
-        res.status(500).json({ error: err.message });
-    }
-});
-
-// Trigger Nudge
-router.post('/nudge', async (req, res) => {
-    const { phone } = req.body;
-    if (!phone) return res.status(400).json({ error: "Phone required" });
-
-    try {
-        await client.messages.create({
-            from: `whatsapp:${process.env.TWILIO_PHONE_NUMBER}`,
-            to: phone,
-            body: `👋 *Just a gentle reminder!*\n\nWe are holding your special price estimate at Jeweled Showroom. When can we expect you?`
-        });
-        await approvalService.logMessage({ from: 'owner', to: phone, text: '[ACTION: NUDGE SENT]' });
-        res.json({ success: true, message: "Nudge sent!" });
-    } catch (err) {
-        console.error("Twilio Error:", err);
-        res.status(500).json({ error: err.message });
-    }
-});
-
-// Update Settings
-router.post('/settings', async (req, res) => {
-    try {
-        Object.assign(db.settings, req.body);
-        db.save();
-        await approvalService.updateStoreSettings(db.settings);
-        res.json({ success: true, settings: db.settings });
-    } catch (e) {
-        res.status(500).json({ error: "Settings update failed" });
-    }
-});
-
-// Get Settings
-router.get('/settings', async (req, res) => {
-    try {
-        const remote = await approvalService.getStoreSettings();
-        if (remote) {
-            Object.assign(db.settings, remote);
-            db.save();
-        }
-        res.json(db.settings || {});
-    } catch (e) {
-        res.json(db.settings || {});
-    }
-});
-
-// Pricing Config (Separate Endpoint for clarity)
-router.get('/settings/pricing', async (req, res) => {
-    try {
-        const config = await approvalService.getPricingConfig();
-        res.json(config);
-    } catch (e) { res.json({}); }
-});
-
-router.post('/settings/pricing', async (req, res) => {
-    try {
-        Object.assign(db.settings, req.body); // Sync local
-        db.save();
-        await approvalService.updatePricingConfig(req.body);
-        res.json({ success: true });
-    } catch (e) { res.status(500).json({ error: "Failed" }); }
-});
-
-// Toggle Bot Mode (Fixed to sync with Firestore)
-router.post('/toggle-bot', async (req, res) => {
-    const { phone, mode } = req.body;
-    try {
-        // Update Local (Visuals)
-        if (!db.sessions[phone]) db.sessions[phone] = { step: 'menu', mode: mode };
-        else db.sessions[phone].mode = mode;
-
-        // Update Firestore (Source of Truth)
-        await approvalService.updateSession(phone, { mode });
-
-        db.save();
-        res.json({ success: true, mode });
-    } catch (e) {
-        console.error("Toggle Bot Error:", e);
-        res.status(500).json({ error: "Failed to toggle bot" });
-    }
-});
-
-// Get Bot Status
-router.get('/bot-status/:phone', (req, res) => {
-    const session = db.sessions[req.params.phone];
-    res.json({ mode: session ? session.mode : 'bot' });
-});
-
-// Get All Customers
-router.get('/all-customers', async (req, res) => {
-    try {
-        const list = await approvalService.getRecentCustomers();
-        res.json(list);
-    } catch (e) {
-        res.status(500).json({ error: "Failed to fetch customers" });
-    }
-});
+// Get All Customers - Disabled
+router.get('/all-customers', (req, res) => res.json([]));
 
 
 

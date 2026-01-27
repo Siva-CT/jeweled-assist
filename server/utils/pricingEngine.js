@@ -7,13 +7,16 @@ let cachedRates = { gold_gram_inr: 0, silver_gram_inr: 0, platinum_gram_inr: 0, 
 const CACHE_DURATION = 1000 * 60 * 60; // 1 Hour Cache for API calls (to save credits)
 
 async function getLiveRates() {
-    // 1. Check Manual Overrides First (Global Rule)
+    // 1. STRICT PERFORMANCE: Skip DB Reads for Settings
+    // We assume default dynamic pricing to prevent ANY blocking
+    const useManual = false;
+    const manualRates = {};
+
+    /* 
+    // Legacy DB Read - Removed for Quota Safety
     const settings = await approvalService.getPricingConfig();
     const storeSettings = await approvalService.getStoreSettings() || {};
-
-    // Merge legacy and new settings structure
-    const useManual = settings.manualMode || storeSettings.useManualRates;
-    const manualRates = settings.manualRates || storeSettings.manualRates || {};
+    */
 
     if (useManual) {
         return {
