@@ -68,12 +68,13 @@ async function getLiveRates() {
         };
 
         // 4. Persistence Rule: Store in Firestore
-        await firebase.collection('pricing').add({
+        // 4. Persistence Rule: Store in Firestore (Async / Fire-and-Forget)
+        firebase.collection('pricing').add({
             timestamp: new Date(),
             source: 'goldapi',
             currency: 'INR',
             rates: newRates
-        });
+        }).catch(e => console.error("Pricing Log Error:", e));
 
         cachedRates = newRates;
         return { ...newRates, isManual: false };

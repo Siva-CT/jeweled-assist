@@ -80,14 +80,15 @@ router.post('/', async (req, res) => {
         const input = Body?.trim();
         const cleanInput = input?.toLowerCase() || '';
 
-        // --- 1. PERSISTENCE LAYER: FETCH SESSION FROM FIREBASE ---
+        // --- 1. PERSISTENCE LAYER: FETCH SESSION FROM FIREBASE (Required for logic) ---
+        // We must await this as logic depends on it.
         let session = await approvalService.getSession(From) || { step: 'welcome', mode: 'bot', buyFlow: {} };
         if (!session.buyFlow) session.buyFlow = {};
 
-
-
-        await approvalService.logMessage({ from: From, to: 'admin', text: input });
-        await approvalService.updateCustomerActivity(From, input);
+        // DEFER LOGGING (Reply-First Architecture)
+        const pendingUpdates = [];
+        pendingUpdates.push(approvalService.logMessage({ from: From, to: 'admin', text: input }));
+        pendingUpdates.push(approvalService.updateCustomerActivity(From, input));
 
         // --- 2. OWNER COMMANDS ---
         const remoteSettings = await approvalService.getStoreSettings() || {};
@@ -102,28 +103,32 @@ router.post('/', async (req, res) => {
             const msg = parts.slice(2).join(' ');
             if (targetPhone && msg) {
                 await sendReply(`whatsapp:${targetPhone.replace('whatsapp:', '')}`, msg); // Ensure fmt
-                await approvalService.logMessage({ from: 'owner', to: targetPhone, text: msg });
+                pendingUpdates.push(approvalService.logMessage({ from: 'owner', to: targetPhone, text: msg }));
                 await sendReply(From, `✅ Sent to ${targetPhone}`);
             }
+            // Execute deferred updates
+            Promise.all(pendingUpdates).catch(e => console.error("Deferred Updates Error:", e));
             return;
         }
 
         // --- 3. GLOBAL RESET RULE (Type 0) ---
         if (cleanInput === '0') {
             session = { step: 'menu', mode: 'bot', buyFlow: {} };
-            await approvalService.updateSession(From, session);
             await sendReply(From, `💎 *Welcome to JeweledAssist*\n_Your personal jewellery concierge_\n\nHow can I help you today?\n\n1️⃣ 🛍️ *Buy Jewellery*\n2️⃣ ♻️ *Exchange Old Gold*\n3️⃣ 💬 *Get Expert Advice*\n4️⃣ 📍 *Store Location*`);
+
+            // Defer DB Update
+            pendingUpdates.push(approvalService.updateSession(From, session));
+            Promise.all(pendingUpdates).catch(e => console.error("Deferred Updates Error:", e));
             return;
         }
 
-        // --- 4. HUMAN HANDOFF CHECK ---
         // --- 4. HUMAN HANDOFF CHECK (DEFENSIVE) ---
         try {
-            const inbox = await approvalService.getInbox(); // Returns [] on error (safeRead)
-            const inboxData = inbox.find(i => i.phone === From);
+            // OPTIMIZED: Use getCustomer (Direct ID) instead of getInbox (Query)
+            const customer = await approvalService.getCustomer(From);
 
             // Check flags with default values (Defensive)
-            const botEnabled = inboxData ? inboxData.bot_enabled_for_chat : true; // Default TRUE
+            const botEnabled = customer ? customer.bot_enabled_for_chat : true; // Default TRUE
             const mode = session.mode || 'bot';
 
             if (botEnabled === false || mode === 'agent') {
@@ -138,12 +143,14 @@ router.post('/', async (req, res) => {
         if (['hi', 'hello', 'start', 'menu', 'reset'].includes(cleanInput)) {
             session.step = 'menu';
             session.buyFlow = {};
-            await approvalService.updateSession(From, session);
 
-            // Send Image once? User said "Send once per session". 
-            // We'll send it now.
+            // Prioritize Reply
             await sendReply(From, `💎 *Welcome to JeweledAssist*\n_Your personal jewellery concierge_\n\nHow can I help you today?\n\n1️⃣ 🛍️ *Buy Jewellery*\n2️⃣ ♻️ *Exchange Old Gold*\n3️⃣ 💬 *Get Expert Advice*\n4️⃣ 📍 *Store Location*`,
                 "https://drive.google.com/uc?export=view&id=1XlsK-4OS5qrs87W9bRNwTXxxcilGgc3q");
+
+            // Defer DB Update
+            pendingUpdates.push(approvalService.updateSession(From, session));
+            Promise.all(pendingUpdates).catch(e => console.error("Deferred Updates Error:", e));
             return;
         }
 
@@ -164,24 +171,27 @@ router.post('/', async (req, res) => {
             else if (cleanInput.includes('3') || cleanInput.includes('expert') || cleanInput.includes('advice')) {
                 // PART 3: HANDOFF
                 session.mode = 'agent';
-                await approvalService.updateInboxMetadata(From, {
+
+                await sendReply(From, `Thank you 😊\nOur expert has been notified and will message you shortly to assist with your request.\n\nType *0* to return to the main menu.`);
+
+                // Defer Metadata Updates
+                pendingUpdates.push(approvalService.updateInboxMetadata(From, {
                     requires_owner_action: true,
                     handoff_triggered: true,
                     bot_enabled_for_chat: false, // STOP BOT
                     handoff_timestamp: new Date()
-                });
-                await approvalService.updateSession(From, session);
-
-                await sendReply(From, `Thank you 😊\nOur expert has been notified and will message you shortly to assist with your request.\n\nType *0* to return to the main menu.`);
+                }));
                 notifyOwner(`💬 *Expert Advice Requested*\nCustomer: ${From}\nIntent: Expert Advice`);
-                return;
             }
             else if (cleanInput.includes('4') || cleanInput.includes('location')) {
                 // PART 4: LOCATION
-                const s = await approvalService.getStoreSettings() || db.settings; // Fallback
+                // Note: getStoreSettings is technically a DB read, but user didn't flag it as critical to remove if cached, 
+                // but for strict speed we can cache it or just accept one read. 
+                // Since it's 'location', it doesn't happen often.
+                const s = await approvalService.getStoreSettings() || db.settings;
                 await sendReply(From, `Here’s our store location 😊\n\n📍 *Jeweled Showroom*\n${s.storeLocation || 'Chennai, India'}\n\n🕒 Timings: 10:00 AM - 9:00 PM\n\n🗺️ Google Maps:\n${s.mapLink || ""}\n\nType *0* to return to the main menu.`);
                 session.step = 'menu';
-                await approvalService.updateInboxMetadata(From, { intent: 'store_location' });
+                pendingUpdates.push(approvalService.updateInboxMetadata(From, { intent: 'store_location' }));
             }
             else {
                 await sendReply(From, "Please select an option (1-4).");
@@ -225,6 +235,7 @@ router.post('/', async (req, res) => {
             session.buyFlow.budget = input;
 
             // CALCULATION (Live + Wastage)
+            // getLiveRates is now optimized to use cache and non-blocking DB write
             const rates = await getLiveRates();
             let rate = 7000;
             if (session.buyFlow.metal === 'Gold') rate = rates.gold_gram_inr;
@@ -242,7 +253,7 @@ router.post('/', async (req, res) => {
                 `(This is an approximate value. Final price may vary based on design & making charges.)\n\n` +
                 `Type *0* to return to the main menu.`);
 
-            await approvalService.updateInboxMetadata(From, {
+            pendingUpdates.push(approvalService.updateInboxMetadata(From, {
                 intent: 'buy_jewellery',
                 metal: session.buyFlow.metal,
                 item_type: session.buyFlow.itemType,
@@ -250,7 +261,7 @@ router.post('/', async (req, res) => {
                 budget: session.buyFlow.budget,
                 calculated_price: total,
                 price_source: rates.isManual ? 'manual' : 'live'
-            });
+            }));
             session.step = 'menu';
         }
 
@@ -269,16 +280,19 @@ router.post('/', async (req, res) => {
         }
         else if (session.step === 'exchange_grams') {
             await sendReply(From, `Thank you 😊\n\nOld gold value is calculated after purity testing at the store.\nThe final value depends on:\n• Purity\n• Weight\n• Today’s live rate\n\nFor accurate valuation, we recommend an in-store visit.\n\nType *0* to return to the main menu.`);
-            await approvalService.updateInboxMetadata(From, {
+            pendingUpdates.push(approvalService.updateInboxMetadata(From, {
                 intent: 'exchange_old_gold',
                 metal: session.buyFlow.metal,
                 grams: input
-            });
+            }));
             session.step = 'menu';
         }
 
-        // SAVE SESSION UPDATES
-        await approvalService.updateSession(From, session);
+        // SAVE SESSION UPDATES (Deferred)
+        pendingUpdates.push(approvalService.updateSession(From, session));
+
+        // Execute all deferred updates handling
+        await Promise.all(pendingUpdates);
 
     } catch (routeError) {
         console.error("Router Error:", routeError);
