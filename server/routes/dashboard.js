@@ -205,4 +205,13 @@ router.get('/all-customers', async (req, res) => {
     }
 });
 
+// Download Customer PDF
+router.get('/customer-pdf/:phone', async (req, res) => {
+    try {
+        await approvalService.generateCustomerPDF(req.params.phone, res);
+    } catch (e) {
+        res.status(500).send("Generation Error");
+    }
+});
+
 module.exports = router;

@@ -1,10 +1,21 @@
 const db = require('../firebase');
+const PDFDocument = require('pdfkit'); // For PDF generation
 
 const COLLECTION = 'approvals';
 
+// --- SAFETY WRAPPERS ---
+// Helper to safely execute Firestore reads without crashing
+async function safeRead(operation, fallback = null) {
+    try {
+        return await operation();
+    } catch (e) {
+        console.error(`Firestore Read Error:`, e);
+        return fallback;
+    }
+}
+
 /**
  * Create a new approval request
- * @param {Object} data { customer, weight, estimatedCost, type }
  */
 const create = async (data) => {
     try {
@@ -17,6 +28,7 @@ const create = async (data) => {
         return { id: docRef.id, ...data };
     } catch (error) {
         console.error("Firebase Create Error:", error);
+        // We throw here because creation failure is critical and caller handles it
         throw error;
     }
 };
@@ -25,7 +37,7 @@ const create = async (data) => {
  * Get all pending approvals (Optimized Query)
  */
 const getPending = async () => {
-    try {
+    return safeRead(async () => {
         const snapshot = await db.collection(COLLECTION)
             .where('status', '==', 'pending_approval')
             .orderBy('createdAt', 'desc')
@@ -36,18 +48,13 @@ const getPending = async () => {
         return snapshot.docs.map(doc => ({
             id: doc.id,
             ...doc.data(),
-            createdAt: doc.data().createdAt.toDate() // Convert Timestamp
+            createdAt: doc.data().createdAt.toDate()
         }));
-    } catch (error) {
-        console.error("Firebase Read Error:", error);
-        return [];
-    }
+    }, []);
 };
 
 /**
  * Approve a request
- * @param {String} id Document ID
- * @param {Number} finalPrice 
  */
 const approve = async (id, finalPrice) => {
     try {
@@ -64,8 +71,7 @@ const approve = async (id, finalPrice) => {
 };
 
 /**
- * Log a chat message
- * @param {Object} msg { from, to, text }
+ * Log a chat message (Fail-safe)
  */
 const logMessage = async (msg) => {
     try {
@@ -79,7 +85,7 @@ const logMessage = async (msg) => {
 };
 
 /**
- * Update Customer Activity
+ * Update Customer Activity (Fail-safe)
  */
 const updateCustomerActivity = async (phone, lastText) => {
     try {
@@ -95,10 +101,10 @@ const updateCustomerActivity = async (phone, lastText) => {
 };
 
 /**
- * Get Recent Customers
+ * Get Recent Customers (Fail-safe)
  */
 const getRecentCustomers = async () => {
-    try {
+    return safeRead(async () => {
         const snapshot = await db.collection('customers')
             .orderBy('lastContact', 'desc')
             .limit(10)
@@ -109,17 +115,14 @@ const getRecentCustomers = async () => {
             ...doc.data(),
             lastContact: doc.data().lastContact.toDate()
         }));
-    } catch (e) {
-        console.error("Firebase Customer Fetch Error:", e);
-        return [];
-    }
+    }, []);
 };
 
 /**
- * Get chat history for a phone number
+ * Get chat history for a phone number (Fail-safe)
  */
 const getChatHistory = async (phone) => {
-    try {
+    return safeRead(async () => {
         // Fetch messages where 'from' is phone
         const msgFrom = await db.collection('messages')
             .where('from', '==', phone)
@@ -139,27 +142,15 @@ const getChatHistory = async (phone) => {
             ...msgTo.docs.map(d => d.data())
         ];
 
-        // Merge and Sort
         return all.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
-    } catch (e) {
-        // Fallback for missing indexes
-        console.warn("Index missing, falling back to simple query", e);
-        const snapshot = await db.collection('messages')
-            .orderBy('timestamp', 'desc')
-            .limit(50)
-            .get();
-        const all = snapshot.docs.map(d => d.data());
-        return all.filter(m => m.from === phone || m.to === phone).reverse();
-    }
+    }, []);
 };
 
-// --- INBOX FEATURES ---
-
 /**
- * Get Inbox (Active Conversations)
+ * Get Inbox (Active Conversations) - CRITICAL SAFETY
  */
 const getInbox = async () => {
-    try {
+    return safeRead(async () => {
         const snapshot = await db.collection('customers')
             .orderBy('lastContact', 'desc')
             .limit(50)
@@ -170,14 +161,11 @@ const getInbox = async () => {
             ...doc.data(),
             lastContact: doc.data().lastContact?.toDate()
         }));
-    } catch (e) {
-        console.error("Firebase Inbox Error:", e);
-        return [];
-    }
+    }, []);
 };
 
 /**
- * Update Inbox Metadata (Intent, Action Required)
+ * Update Inbox Metadata
  */
 const updateInboxMetadata = async (phone, metadata) => {
     try {
@@ -192,65 +180,49 @@ const updateInboxMetadata = async (phone, metadata) => {
 
 // --- CONFIGURATION FEATURES ---
 
-/**
- * Get Store Settings
- */
 const getStoreSettings = async () => {
-    try {
+    return safeRead(async () => {
         const doc = await db.collection('config').doc('store_settings').get();
         return doc.exists ? doc.data() : null;
-    } catch (e) { return null; }
+    }, null);
 };
 
 const updateStoreSettings = async (data) => {
-    await db.collection('config').doc('store_settings').set(data, { merge: true });
+    try { await db.collection('config').doc('store_settings').set(data, { merge: true }); } catch (e) { console.error(e); }
 };
 
-/**
- * Get Pricing Config
- */
 const getPricingConfig = async () => {
-    try {
+    return safeRead(async () => {
         const doc = await db.collection('config').doc('pricing').get();
         return doc.exists ? doc.data() : { manualMode: false, manualRates: {} };
-    } catch (e) { return { manualMode: false, manualRates: {} }; }
+    }, { manualMode: false, manualRates: {} });
 };
 
 const updatePricingConfig = async (data) => {
-    await db.collection('config').doc('pricing').set(data, { merge: true });
+    try { await db.collection('config').doc('pricing').set(data, { merge: true }); } catch (e) { console.error(e); }
 };
 
-/**
- * Get Bot Status
- */
 const getBotStatus = async () => {
-    try {
+    return safeRead(async () => {
         const doc = await db.collection('config').doc('bot_status').get();
         return doc.exists ? doc.data() : { active: true };
-    } catch (e) { return { active: true }; }
+    }, { active: true });
 };
 
 const updateBotStatus = async (active) => {
-    await db.collection('config').doc('bot_status').set({ active }, { merge: true });
+    try { await db.collection('config').doc('bot_status').set({ active }, { merge: true }); } catch (e) { console.error(e); }
 };
 
-/**
- * Placeholder for legacy compatibility if needed
- */
-const getSettings = async () => {
-    return getStoreSettings();
-};
-const updateSettings = async (data) => {
-    return updateStoreSettings(data);
-};
+const getSettings = async () => getStoreSettings();
+const updateSettings = async (data) => updateStoreSettings(data);
 
 // --- SESSION MANAGEMENT ---
 
 const getSession = async (phone) => {
-    try {
+    return safeRead(async () => {
         const doc = await db.collection('sessions').doc(phone).get();
         return doc.exists ? doc.data() : null;
-    } catch (e) { return null; }
+    }, null);
 };
 
 const updateSession = async (phone, data) => {
@@ -270,61 +242,117 @@ const incrementMonthlyQueries = async () => {
     const now = new Date();
     const monthKey = `enquiries_${now.getFullYear()}_${String(now.getMonth() + 1).padStart(2, '0')}`;
     const statsRef = db.collection('analytics').doc('monthly');
-
     try {
         await db.runTransaction(async (t) => {
             const doc = await t.get(statsRef);
             const current = doc.exists ? (doc.data()[monthKey] || 0) : 0;
             t.set(statsRef, { [monthKey]: current + 1 }, { merge: true });
         });
-    } catch (e) {
-        // Fallback for non-transactional envs if needed, or just log
-        console.error("Analytics Inc Error", e);
-    }
+    } catch (e) { console.error("Analytics Inc Error", e); }
 };
 
 const getMonthlyStats = async () => {
-    const now = new Date();
-    const monthKey = `enquiries_${now.getFullYear()}_${String(now.getMonth() + 1).padStart(2, '0')}`;
-    try {
+    return safeRead(async () => {
+        const now = new Date();
+        const monthKey = `enquiries_${now.getFullYear()}_${String(now.getMonth() + 1).padStart(2, '0')}`;
         const doc = await db.collection('analytics').doc('monthly').get();
-        return {
-            totalQueries: doc.exists ? (doc.data()[monthKey] || 0) : 0
-        };
-    } catch (e) { return { totalQueries: 0 }; }
+        return { totalQueries: doc.exists ? (doc.data()[monthKey] || 0) : 0 };
+    }, { totalQueries: 0 });
 };
 
-/**
- * Get aggregated customer analytics for the month
- */
 const getMonthlyCustomerAnalytics = async () => {
-    const now = new Date();
-    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-
-    try {
-        // Since we can't easily aggregate "Count of Queries" per user without keeping a counter on the user doc,
-        // we'll fetch active customers and use their 'lastQuery' or 'lastContact'.
-        // Ideally, we should have incremented a counter on the customer doc too.
-        // For this PRODUCTION FIX, we will list 'Recent Customers' and their statuses.
-
+    return safeRead(async () => {
+        const now = new Date();
+        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
         const snapshot = await db.collection('customers')
             .where('updatedAt', '>=', startOfMonth)
-            .limit(20) // Cap at 20 for dashboard
+            .limit(20)
             .get();
-
         return snapshot.docs.map(doc => {
             const d = doc.data();
             return {
                 customer: doc.id,
-                queriesThisMonth: 1, // Fallback as we didn't count strictly per msg. 
-                // To do this strictly, we'd need to query messages collection count for this user > startOfMonth.
-                // Doing that for EVERY user in the list is expensive.
-                // We will stick to listing them.
+                queriesThisMonth: 1,
                 queryTypes: d.intent || 'General',
                 storeVisit: d.storeVisitScheduled ? 'Yes' : 'No'
             };
         });
-    } catch (e) { return []; }
+    }, []);
+};
+
+// --- PDF GENERATION ---
+const generateCustomerPDF = async (phone, res) => {
+    try {
+        // Fetch Data
+        const customerDoc = await safeRead(() => db.collection('customers').doc(phone).get());
+        const customerData = customerDoc && customerDoc.exists ? customerDoc.data() : {};
+
+        // Helper to check intent usage
+        // We'll just list the last few intents from messages if we don't have aggregated fields
+        // But for speed, let's use what we have in customerData (updated by whatsapp.js)
+
+        const doc = new PDFDocument();
+
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `attachment; filename=customer_${phone}.pdf`);
+
+        doc.pipe(res);
+
+        // Header
+        doc.fontSize(20).text('JeweledAssist - Customer Summary', { align: 'center' });
+        doc.moveDown();
+        doc.fontSize(10).text(`Generated on: ${new Date().toLocaleString()}`, { align: 'right' });
+        doc.moveDown();
+        doc.moveTo(50, doc.y).lineTo(550, doc.y).stroke();
+        doc.moveDown();
+
+        // Customer Details
+        doc.fontSize(14).text('Customer Details');
+        doc.moveDown(0.5);
+        doc.fontSize(12).font('Helvetica-Bold').text(`Phone Number: ${phone}`);
+        doc.font('Helvetica').text(`Last Interaction: ${customerData.lastContact ? customerData.lastContact.toDate().toLocaleString() : 'N/A'}`);
+        doc.text(`Store Visit Scheduled: ${customerData.storeVisitScheduled ? 'Yes' : 'No'}`);
+        doc.moveDown();
+
+        // Conversation Summary
+        doc.fontSize(14).text('Conversation Summary');
+        doc.moveDown(0.5);
+
+        const intents = [];
+        if (customerData.intent) intents.push(customerData.intent);
+        // This is a basic export. In a real system we'd query all messages to find all intents.
+        // For now, we list the LATEST known intent.
+        doc.fontSize(12).text(`Latest Intent: ${customerData.intent || 'None'}`);
+
+        doc.moveDown();
+
+        // Latest Buy Request
+        if (customerData.intent === 'buy_jewellery') {
+            doc.fontSize(14).text('Latest Purchase Inquiry');
+            doc.moveDown(0.5);
+            doc.fontSize(12).text(`Metal: ${customerData.metal || 'N/A'}`);
+            doc.text(`Item: ${customerData.item_type || 'N/A'}`);
+            doc.text(`Weight: ${customerData.grams || 0}g`);
+            doc.text(`Price per Gram: ${customerData.price_per_gram || 'N/A'}`);
+            doc.text(`Estimated Price: ${customerData.calculated_price || 'N/A'}`);
+            doc.text(`Price Source: ${customerData.price_source || 'N/A'}`);
+            doc.moveDown();
+        }
+
+        // Staff Notes (Placeholder)
+        doc.fontSize(14).text('Staff Notes');
+        doc.moveDown(0.5);
+        doc.fontSize(12).text(customerData.notes || 'No notes available.');
+
+        // Footer
+        doc.moveDown(2);
+        doc.fontSize(10).text('Source: JeweledAssist Admin Panel', { align: 'center', color: 'grey' });
+
+        doc.end();
+    } catch (e) {
+        console.error("PDF Gen Error:", e);
+        if (!res.headersSent) res.status(500).send("PDF Generation Failed");
+    }
 };
 
 module.exports = {
@@ -349,5 +377,6 @@ module.exports = {
     updateSession,
     incrementMonthlyQueries,
     getMonthlyStats,
-    getMonthlyCustomerAnalytics
+    getMonthlyCustomerAnalytics,
+    generateCustomerPDF
 };

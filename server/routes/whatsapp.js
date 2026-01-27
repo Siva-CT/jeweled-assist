@@ -120,12 +120,21 @@ router.post('/', async (req, res) => {
         }
 
         // --- 4. HUMAN HANDOFF CHECK ---
-        // Check Firestore for explicit disable
-        const inboxData = (await approvalService.getInbox()).find(i => i.phone === From);
-        if ((inboxData && inboxData.bot_enabled_for_chat === false) || session.mode === 'agent') {
-            // Bot is OFF for this chat.
-            // Do not reply.
-            return;
+        // --- 4. HUMAN HANDOFF CHECK (DEFENSIVE) ---
+        try {
+            const inbox = await approvalService.getInbox(); // Returns [] on error (safeRead)
+            const inboxData = inbox.find(i => i.phone === From);
+
+            // Check flags with default values (Defensive)
+            const botEnabled = inboxData ? inboxData.bot_enabled_for_chat : true; // Default TRUE
+            const mode = session.mode || 'bot';
+
+            if (botEnabled === false || mode === 'agent') {
+                return; // Bot is OFF.
+            }
+        } catch (checkErr) {
+            console.error("Handoff Check Failed - Defaulting to Bot ON", checkErr);
+            // If check fails, we Allow bot to continue so we don't block customers.
         }
 
         // --- 5. GLOBAL WELCOME ---
