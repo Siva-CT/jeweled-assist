@@ -187,6 +187,7 @@ router.post('/', async (req, res) => {
         db.sessions[From] = session;
         // Log Incoming Message (Firebase)
         await approvalService.logMessage({ from: From, to: 'admin', text: input });
+        await approvalService.updateCustomerActivity(From, input);
 
         // AGENT MODE (Human Takeover)
         if (session.mode === 'agent') {

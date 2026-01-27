@@ -150,15 +150,13 @@ router.get('/bot-status/:phone', (req, res) => {
 });
 
 // Get All Customers
-router.get('/all-customers', (req, res) => {
-    // Return persistent customers list
-    const list = Object.values(db.customers || {}).map(c => ({
-        customer: c.phone,
-        lastContact: c.lastContact,
-        lastQuery: c.lastQuery || 'No interaction',
-        msgCount: c.msgCount || 0
-    }));
-    res.json(list.sort((a, b) => new Date(b.lastContact) - new Date(a.lastContact)));
+router.get('/all-customers', async (req, res) => {
+    try {
+        const list = await approvalService.getRecentCustomers();
+        res.json(list);
+    } catch (e) {
+        res.status(500).json({ error: "Failed to fetch customers" });
+    }
 });
 
 module.exports = router;

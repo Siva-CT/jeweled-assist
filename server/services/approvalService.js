@@ -80,27 +80,78 @@ const approvalService = {
     },
 
     /**
+     * Update Customer Activity
+     */
+    updateCustomerActivity: async (phone, lastText) => {
+        try {
+            await db.collection('customers').doc(phone).set({
+                phone: phone,
+                lastQuery: lastText,
+                lastContact: new Date(),
+                // simple counter increment is harder in stateless, we just touch update
+                updatedAt: new Date()
+            }, { merge: true });
+        } catch (e) {
+            console.error("Firebase Customer Update Error:", e);
+        }
+    },
+
+    /**
+     * Get Recent Customers
+     */
+    getRecentCustomers: async () => {
+        try {
+            const snapshot = await db.collection('customers')
+                .orderBy('lastContact', 'desc')
+                .limit(10)
+                .get();
+
+            return snapshot.docs.map(doc => ({
+                customer: doc.id,
+                ...doc.data(),
+                lastContact: doc.data().lastContact.toDate()
+            }));
+        } catch (e) {
+            console.error("Firebase Customer Fetch Error:", e);
+            return [];
+        }
+    },
+
+    /**
      * Get chat history for a phone number
      */
     getChatHistory: async (phone) => {
         try {
-            // Complex query: get messages FROM customer OR TO customer
-            // Firestore requires specific composite indexes for OR queries usually,
-            // so we might do two queries and merge for simplicity if indexes are missing.
-            // For now, let's assume we store them in a way that allows easy retrieval or just filtered on client.
-            // Simplified: Query all messages where 'conversationId' matches (if we had one)
-            // Or just fetch last 50 messages ordered by timestamp and filter in memory (efficient enough for small scale)
+            // Fetch messages where 'from' is phone
+            const msgFrom = await db.collection('messages')
+                .where('from', '==', phone)
+                .orderBy('timestamp', 'desc')
+                .limit(20)
+                .get();
 
+            // Fetch messages where 'to' is phone
+            const msgTo = await db.collection('messages')
+                .where('to', '==', phone)
+                .orderBy('timestamp', 'desc')
+                .limit(20)
+                .get();
+
+            const all = [
+                ...msgFrom.docs.map(d => d.data()),
+                ...msgTo.docs.map(d => d.data())
+            ];
+
+            // Merge and Sort
+            return all.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+        } catch (e) {
+            // Fallback for missing indexes
+            console.warn("Index missing, falling back to simple query", e);
             const snapshot = await db.collection('messages')
                 .orderBy('timestamp', 'desc')
                 .limit(50)
                 .get();
-
             const all = snapshot.docs.map(d => d.data());
             return all.filter(m => m.from === phone || m.to === phone).reverse();
-        } catch (e) {
-            console.error("Firebase History Error:", e);
-            return [];
         }
     }
 };
