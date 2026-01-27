@@ -6,7 +6,7 @@ const Sidebar = ({ activePage, setActivePage }) => {
     const menuItems = [
         { id: 'dashboard', icon: LayoutDashboard, label: 'Overview' },
         { id: 'rates', icon: TrendingUp, label: 'Live Rates' },
-        { id: 'customers', icon: Users, label: 'Customers' },
+        { id: 'inbox', icon: Users, label: 'Inbox' },
         { id: 'settings', icon: Settings, label: 'Store Settings' }
     ];
 
