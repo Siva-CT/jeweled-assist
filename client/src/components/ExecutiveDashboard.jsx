@@ -32,11 +32,15 @@ const ExecutiveDashboard = () => {
         return () => clearInterval(interval);
     }, []);
 
+    const conversionRate = stats.totalInquiries > 0
+        ? ((stats.qualifiedleads / stats.totalInquiries) * 100).toFixed(1)
+        : '0.0';
+
     const cards = [
         { label: 'TOTAL INQUIRIES', value: stats.totalInquiries || 0, sub: '+12% from last week', icon: Users },
         { label: 'PENDING ACTIONS', value: stats.pendingCount || 0, sub: 'Requires attention', icon: Clock, highlight: stats.pendingCount > 0 },
         { label: 'SILVER RATE', value: `₹${stats.silverRate}/g`, sub: 'Live Market Rate', icon: TrendingUp },
-        { label: 'CONVERSION RATE', value: '4.2%', sub: 'Revenue up', icon: Activity },
+        { label: 'CONVERSION RATE', value: `${conversionRate}%`, sub: 'Leads to Sales', icon: Activity },
     ];
 
     return (
