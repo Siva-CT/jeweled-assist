@@ -178,16 +178,23 @@ router.post('/settings/pricing', async (req, res) => {
     } catch (e) { res.status(500).json({ error: "Failed" }); }
 });
 
-// Toggle Bot Mode
-router.post('/toggle-bot', (req, res) => {
+// Toggle Bot Mode (Fixed to sync with Firestore)
+router.post('/toggle-bot', async (req, res) => {
     const { phone, mode } = req.body;
-    if (!db.sessions[phone]) {
-        db.sessions[phone] = { step: 'menu', mode: mode };
-    } else {
-        db.sessions[phone].mode = mode;
+    try {
+        // Update Local (Visuals)
+        if (!db.sessions[phone]) db.sessions[phone] = { step: 'menu', mode: mode };
+        else db.sessions[phone].mode = mode;
+
+        // Update Firestore (Source of Truth)
+        await approvalService.updateSession(phone, { mode });
+
+        db.save();
+        res.json({ success: true, mode });
+    } catch (e) {
+        console.error("Toggle Bot Error:", e);
+        res.status(500).json({ error: "Failed to toggle bot" });
     }
-    db.save();
-    res.json({ success: true, mode: db.sessions[phone].mode });
 });
 
 // Get Bot Status

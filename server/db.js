@@ -69,6 +69,14 @@ if (loadedData) {
 
 const db = {
     ...data,
+    // FORCE-OVERWRITE heavy arrays to Empty to prevent OOM
+    // We strictly use Firestore for these now.
+    messages: [], // Removed legacy messages
+    pendingApprovals: [], // Legacy backup only
+    customers: {}, // Legacy backup only
+    sessions: data.sessions || {}, // Keep sessions for now if mixed usage, but keep eye on it
+    settings: data.settings,
+
     prune: () => {
         const ONE_DAY = 24 * 60 * 60 * 1000;
         const now = Date.now();
@@ -102,13 +110,13 @@ const db = {
     save: () => {
         try {
             const content = JSON.stringify({
-                pendingApprovals: db.pendingApprovals,
-                messages: db.messages,
-                sessions: db.sessions,
+                pendingApprovals: [], // Don't save (Used Firestore)
+                messages: [], // Don't save (Used Firestore)
+                sessions: db.sessions, // Persist for now
                 ownerContext: db.ownerContext,
                 settings: db.settings,
                 stats: db.stats,
-                customers: db.customers
+                customers: {} // Don't save (Used Firestore)
             }, null, 2);
 
             // 1. Write to backup first
