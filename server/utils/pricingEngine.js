@@ -5,7 +5,7 @@ const approvalService = require('../services/approvalService');
 // const firebase = require('../firebase'); // Now 'db' IS this.
 
 let cachedRates = { gold_gram_inr: 0, silver_gram_inr: 0, platinum_gram_inr: 0, timestamp: 0 };
-const CACHE_DURATION = 1000 * 60; // 1 Minute Cache (User Requirement: Live)
+const CACHE_DURATION = 1000 * 60 * 60 * 24; // 24 Hours Cache (API Usage Optimization)
 
 async function getLiveRates() {
     // 1. STRICT PERFORMANCE: Skip DB Reads for Settings
