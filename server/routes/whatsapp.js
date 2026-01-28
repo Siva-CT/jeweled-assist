@@ -100,6 +100,22 @@ router.post('/', async (req, res) => {
         let nextStep = session.step; // Default to stay
         let nextMode = session.mode;
 
+        // --- 0. AGENT MODE CHECK (SILENCE BOT) ---
+        // If in 'agent' mode, ignore EVERYTHING except explicit reset
+        // This allows the owner to chat freely without bot interference
+        if (session.mode === 'agent') {
+            // Allow user to break out if they type '0' or 'reset' explicitly.
+            // Otherwise, just log the message (done at bottom) and EXIT.
+            if (!['0', 'reset', 'menu'].includes(cleanInput)) {
+                // Log the customer message so the owner sees it in Inbox
+                approvalService.logMessage({ from: From, to: 'admin', text: input });
+                approvalService.updateCustomerActivity(From, input);
+                // DO NOT REPLY. DO NOT UPDATE SESSION.
+                return;
+            }
+            // If they typed '0', flow continues below to Global Resets...
+        }
+
         // --- 2.1. GLOBAL RESETS ---
         if (['hi', 'hello', 'start', 'menu', 'reset', '0'].includes(cleanInput)) {
             nextStep = 'menu';
