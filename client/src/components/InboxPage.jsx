@@ -13,22 +13,31 @@ const InboxPage = () => {
     const [chatLoading, setChatLoading] = useState(false);
 
     // Fetch Chat History when Chat Selected
+    // Fetch Chat History with Polling
     useEffect(() => {
+        let interval;
         if (selectedChat?.phone) {
-            setChatLoading(true);
-            fetch(`${API_URL}/api/dashboard/chat/${selectedChat.phone}`)
-                .then(res => res.json())
-                .then(data => {
-                    setMessages(data || []);
-                    setChatLoading(false);
-                })
-                .catch(e => {
-                    console.error(e);
-                    setChatLoading(false);
-                });
+            setChatLoading(true); // Initial load only
+
+            const fetchMsgs = () => {
+                fetch(`${API_URL}/api/dashboard/chat/${selectedChat.phone}`)
+                    .then(res => res.json())
+                    .then(data => {
+                        setMessages(data || []);
+                        setChatLoading(false);
+                    })
+                    .catch(e => {
+                        console.error(e);
+                        setChatLoading(false);
+                    });
+            };
+
+            fetchMsgs(); // Fetch immediately
+            interval = setInterval(fetchMsgs, 3000); // Poll every 3s
         } else {
             setMessages([]);
         }
+        return () => clearInterval(interval);
     }, [selectedChat]);
     // List of Chats
     useEffect(() => {
