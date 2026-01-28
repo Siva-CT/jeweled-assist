@@ -107,9 +107,13 @@ router.post('/', async (req, res) => {
             // Allow user to break out if they type '0' or 'reset' explicitly.
             // Otherwise, just log the message (done at bottom) and EXIT.
             if (!['0', 'reset', 'menu'].includes(cleanInput)) {
+                console.log(`[Agent Mode] Silencing Bot for ${From}. Msg: ${cleanInput}`);
+
                 // Log the customer message so the owner sees it in Inbox
-                approvalService.logMessage({ from: From, to: 'admin', text: input });
-                approvalService.updateCustomerActivity(From, input);
+                await approvalService.logMessage({ from: From, to: 'admin', text: input });
+                await approvalService.updateCustomerActivity(From, input);
+
+                console.log(`[Agent Mode] Message Logged for ${From}`);
                 // DO NOT REPLY. DO NOT UPDATE SESSION.
                 return;
             }

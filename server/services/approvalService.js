@@ -137,21 +137,24 @@ const getRecentCustomers = async () => {
 const getChatHistory = async (phone) => {
     return safeRead(async () => {
         // Fetch messages where 'from' is phone (No orderBy to avoid Index issues)
+        console.log(`Fetching history for ${phone}`);
         const msgFrom = await db.collection('messages')
             .where('from', '==', phone)
-            .limit(50)
+            .limit(100) // Increased limit
             .get();
 
         // Fetch messages where 'to' is phone
         const msgTo = await db.collection('messages')
             .where('to', '==', phone)
-            .limit(50)
+            .limit(100)
             .get();
 
         const all = [
             ...msgFrom.docs.map(d => d.data()),
             ...msgTo.docs.map(d => d.data())
         ];
+
+        console.log(`Found ${all.length} messages for ${phone}`);
 
         // RAM Sort (Ascending for Chat UI)
         return all.sort((a, b) => {
